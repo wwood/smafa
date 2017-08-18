@@ -1,0 +1,7 @@
+[package]
+name = "smafa"
+version = "0.1.0"
+authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
+
+[dependencies]
+bio = "=0.14.*"
