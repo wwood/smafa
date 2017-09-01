@@ -2,9 +2,9 @@ extern crate bio;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate bincode;
-extern crate serde;
-extern crate serde_json;
+
+extern crate clap;
+use clap::App;
 
 use std::str;
 
@@ -14,40 +14,24 @@ use bio::data_structures::suffix_array::{suffix_array};
 use bio::data_structures::bwt::*;
 use bio::io::fasta;
 
-use std::env;
 use std::fs::File;
 use std::time::Instant;
 use std::collections::HashSet;
 use std::process;
 
 fn main(){
-    let args: Vec<String> = env::args().collect();
-    let _ = env_logger::init().unwrap();
+    let matches = App::new("smafa")
+        .version("0.1.0")
+        .author("Ben J. Woodcroft <benjwoodcroft near gmail.com>")
+        .about("Read aligner for small pre-aligned sequences")
+        .args_from_usage(
+            "<DB_FASTA>          'Subject sequences to search against'
+             <QUERY_FASTA>       'Query sequences to search with'")
+    .get_matches();
 
-    match args.len() {
-        4 => {
-            match &args[1] as &str {
-                "query" => query(&args[2], &args[3]),
-                _ => {
-                    print_help();
-                    eprintln!("Unexpected argument '{}'.", &args[1]);
-                    process::exit(1);
-                }
-            }
-        },
-        _ => {
-            print_help();
-            eprintln!("Unexpected number of arguments.");
-            process::exit(1);
-        }
-    }
-}
-
-fn print_help(){
-    println!("Usage:");
-    println!("");
-    println!(" smafa query <reference_fasta> <query_fasta>");
-    println!();
+    let db_fasta = matches.value_of("DB_FASTA").unwrap();
+    let query_fasta = matches.value_of("QUERY_FASTA").unwrap();
+    query(db_fasta, query_fasta);
 }
 
 fn query(db_fasta: &str, query_fasta: &str){
