@@ -110,8 +110,8 @@ fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
                 let start2 = pos / 61;
                 let start = start2 * 61;
                 if !printed_seqs.contains(&start) {
-                    printed_seqs.insert(start);
-                    if pos-start == 0 {
+                    if pos-start == 5*i {
+                        printed_seqs.insert(start);
                         let subject = &text[(start..(start+60))];
                         let mut divergence = 0;
                         let mut total = 0;
