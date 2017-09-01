@@ -1,12 +1,15 @@
 extern crate bio;
 #[macro_use]
 extern crate log;
+use log::LogLevelFilter;
 extern crate env_logger;
+use env_logger::LogBuilder;
 
 extern crate clap;
 use clap::*;
 
 use std::str;
+use std::env;
 
 use bio::alphabets::dna;
 use bio::data_structures::fmindex::*;
@@ -27,8 +30,25 @@ fn main(){
         .args_from_usage(
             "<DB_FASTA>          'Subject sequences to search against'
              <QUERY_FASTA>       'Query sequences to search with'
-             -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'")
+             -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'
+             -v, --verbose       'Print extra debug logging information'
+             -q, --quiet         'Unless there is an error, do not print logging information'")
     .get_matches();
+
+    // Setup logging.
+    let mut log_level = LogLevelFilter::Info;
+    if matches.is_present("verbose") {
+        log_level = LogLevelFilter::Debug;
+    }
+    if matches.is_present("quiet") {
+        log_level = LogLevelFilter::Error;
+    }
+    let mut builder = LogBuilder::new();
+    builder.filter(None, log_level);
+    if env::var("RUST_LOG").is_ok() {
+        builder.parse(&env::var("RUST_LOG").unwrap());
+    }
+    builder.init().unwrap();
 
     let db_fasta = matches.value_of("DB_FASTA").unwrap();
     let query_fasta = matches.value_of("QUERY_FASTA").unwrap();
