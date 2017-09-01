@@ -28,24 +28,26 @@ fn main(){
         4 => {
             match &args[1] as &str {
                 "query" => query(&args[2], &args[3]),
-                _ => print_help()
+                _ => {
+                    print_help();
+                    eprintln!("Unexpected argument '{}'.", &args[1]);
+                    process::exit(1);
+                }
             }
         },
-        _ => panic!("Unexpected number of arguments")
+        _ => {
+            print_help();
+            eprintln!("Unexpected number of arguments.");
+            process::exit(1);
+        }
     }
 }
 
 fn print_help(){
-    eprintln!("Not implemented!");
-    process::exit(1);
-    // println!("Usage:");
-    // println!("");
-    // println!(" smafa makedb <reference_fasta>");
-    // println!("      or");
-    // println!(" genome_assigner stage1 <sorted_indexed_bam>");
-    // println!("      or");
-    // println!(" genome_assigner missing <sorted_indexed_bam> <reference_fasta> <excluded_positions>");
-    // println!("");
+    println!("Usage:");
+    println!("");
+    println!(" smafa query <reference_fasta> <query_fasta>");
+    println!();
 }
 
 fn query(db_fasta: &str, query_fasta: &str){
