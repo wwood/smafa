@@ -18,10 +18,11 @@ use std::env;
 use std::fs::File;
 use std::time::Instant;
 use std::collections::HashSet;
+use std::process;
 
 fn main(){
     let args: Vec<String> = env::args().collect();
-    env_logger::init();
+    let _ = env_logger::init().unwrap();
 
     match args.len() {
         4 => {
@@ -35,7 +36,8 @@ fn main(){
 }
 
 fn print_help(){
-    panic!("Not implemented!");
+    eprintln!("Not implemented!");
+    process::exit(1);
     // println!("Usage:");
     // println!("");
     // println!(" smafa makedb <reference_fasta>");
@@ -57,7 +59,12 @@ fn query(db_fasta: &str, query_fasta: &str){
     {
         let mut i: u64 = 0;
         for record in reader.records() {
-            text.extend(record.unwrap().seq().iter().cloned());
+            let record = record.unwrap();
+            if record.seq().len() != 60 {
+                eprintln!("Currently only sequences of exactly length 60 are permitted.");
+                process::exit(1);
+            }
+            text.extend(record.seq().iter().cloned());
             text.extend_from_slice(b"$");
             i+=1;
         }
