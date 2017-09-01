@@ -4,7 +4,7 @@ extern crate log;
 extern crate env_logger;
 
 extern crate clap;
-use clap::App;
+use clap::*;
 
 use std::str;
 
@@ -26,15 +26,17 @@ fn main(){
         .about("Read aligner for small pre-aligned sequences")
         .args_from_usage(
             "<DB_FASTA>          'Subject sequences to search against'
-             <QUERY_FASTA>       'Query sequences to search with'")
+             <QUERY_FASTA>       'Query sequences to search with'
+             -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'")
     .get_matches();
 
     let db_fasta = matches.value_of("DB_FASTA").unwrap();
     let query_fasta = matches.value_of("QUERY_FASTA").unwrap();
-    query(db_fasta, query_fasta);
+    let max_divergence = value_t!(matches.value_of("divergence"), u32).unwrap_or(5);
+    query(db_fasta, query_fasta, max_divergence);
 }
 
-fn query(db_fasta: &str, query_fasta: &str){
+fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
     let mut text = vec![];
 
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
@@ -96,13 +98,13 @@ fn query(db_fasta: &str, query_fasta: &str){
                         for i in 0..60 {
                             if subject[i] != pattern[i] {
                                 divergence = divergence + 1;
-                                if divergence > 5 {
+                                if divergence > max_divergence {
                                     break
                                 }
                             }
                             total = total + 1;
                         }
-                        if divergence <= 5 {
+                        if divergence <= max_divergence {
                             num_hits = num_hits + 1;
                             println!("{}\t{}\t{}\t{}\t{}",
                                      seq.id(),
