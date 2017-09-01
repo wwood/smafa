@@ -65,6 +65,7 @@ fn query(db_fasta: &str, query_fasta: &str){
     }
 
     let alphabet = dna::n_alphabet();
+    let before_index_generation_time = Instant::now();
     new_now = Instant::now(); debug!("reading {:?}", new_now.duration_since(now)); now = new_now;
     let sa = suffix_array(&text);
     new_now = Instant::now(); debug!("suffix array {:?}", new_now.duration_since(now)); now = new_now;
@@ -76,6 +77,7 @@ fn query(db_fasta: &str, query_fasta: &str){
     new_now = Instant::now(); debug!("occ {:?}", new_now.duration_since(now)); now = new_now;
     let fm = FMIndex::new(&bwt, &less, &occ);
     new_now = Instant::now(); debug!("fmindex {:?}", new_now.duration_since(now));
+    info!("Generated index in {:?}", Instant::now().duration_since(before_index_generation_time));
 
     let reader = fasta::Reader::new(File::open(query_fasta).unwrap());
     let mut num_hits: u64 = 0;
