@@ -2,7 +2,8 @@
 
 smafa attempts to align sequences to a database of aligned sequences. Currently,
 it only handles query and db sequences which are 60bp in length, in concert with
-[SingleM](https://github.com/wwood/singlem). To run it:
+[SingleM](https://github.com/wwood/singlem). To run it, you'll need
+[Rust](http://rust-lang.org/) 1.20+. Then download and run smafa:
 
 ```
 $ git clone https://github.com/wwood/smafa
