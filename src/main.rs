@@ -103,6 +103,10 @@ fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
     for record in reader.records() {
         let seq = record.unwrap();
         let pattern = seq.seq();
+        if pattern.len() != sequence_length {
+            eprintln!("Sequence '{}' is not the same length as sequences in the database.", seq.id());
+            process::exit(3);
+        }
         let mut printed_seqs: HashSet<usize> = HashSet::new();
         for i in 0..((sequence_length-5) / 5) {
             let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
