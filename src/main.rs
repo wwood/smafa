@@ -60,6 +60,7 @@ fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
     let mut text = vec![];
 
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
+    let mut sequence_length: usize = 0; // often 60
 
     let mut now = Instant::now();
     let mut new_now;
@@ -68,8 +69,11 @@ fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
         let mut i: u64 = 0;
         for record in reader.records() {
             let record = record.unwrap();
-            if record.seq().len() != 60 {
-                eprintln!("Currently only sequences of exactly length 60 are permitted.");
+            if sequence_length == 0 {
+                sequence_length = record.seq().len();
+                debug!("Found first sequence length {}", sequence_length)
+            } else if record.seq().len() != sequence_length {
+                eprintln!("Found sequences of different lengths, all sequences must be of the same sequence.");
                 process::exit(1);
             }
             text.extend(record.seq().iter().cloned());
@@ -100,22 +104,22 @@ fn query(db_fasta: &str, query_fasta: &str, max_divergence: u32){
         let seq = record.unwrap();
         let pattern = seq.seq();
         let mut printed_seqs: HashSet<usize> = HashSet::new();
-        for i in 0..11 {
+        for i in 0..((sequence_length-5) / 5) {
             let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
             let some = intervals.occ(&sa);
 
             // The text if of length 60, plus the sentinal.
             // So the sequence is located in the text at text[pos/61 .. pos+60] I think.
             for pos in some {
-                let start2 = pos / 61;
-                let start = start2 * 61;
+                let start2 = pos / (sequence_length + 1);
+                let start = start2 * (sequence_length + 1);
                 if !printed_seqs.contains(&start) {
                     if pos-start == 5*i {
                         printed_seqs.insert(start);
-                        let subject = &text[(start..(start+60))];
+                        let subject = &text[(start..(start+sequence_length))];
                         let mut divergence = 0;
                         let mut total = 0;
-                        for i in 0..60 {
+                        for i in 0..sequence_length {
                             if subject[i] != pattern[i] {
                                 divergence = divergence + 1;
                                 if divergence > max_divergence {
