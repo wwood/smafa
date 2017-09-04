@@ -4,8 +4,7 @@ version = "0.1.0"
 authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 
 [dependencies]
-#bio = "=0.14.*"
-bio = {git = "https://github.com/rust-bio/rust-bio"}
+bio = "0.14.*"
 log = "0.3.*"
 env_logger = "0.4.*"
 clap = "2.26.*"
