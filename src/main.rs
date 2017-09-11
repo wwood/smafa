@@ -137,7 +137,10 @@ fn makedb(db_root: &str, db_fasta: &str){
         text.extend_from_slice(b"$");
         i+=1;
     }
-    text.extend_from_slice(b"\0");
+    // Add a lexigraphically small character at the end to satisfy BWT
+    // constraints. Do not use '\0' in case this is introduced into the bio-rust
+    // BWT itself.
+    text.extend_from_slice(b"#");
     new_now = Instant::now();
     info!("Read in {} sequences in {} seconds.", i, new_now.duration_since(now).as_secs());
 
