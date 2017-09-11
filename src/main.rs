@@ -131,6 +131,7 @@ fn makedb(db_root: &str, db_fasta: &str){
         text.extend_from_slice(b"$");
         i+=1;
     }
+    text.extend_from_slice(b"\0");
     new_now = Instant::now();
     info!("Read in {} sequences in {} seconds.", i, new_now.duration_since(now).as_secs());
 
