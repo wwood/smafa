@@ -109,6 +109,12 @@ struct SaveableFMIndex {
     occ: Occ
 }
 
+#[derive(Serialize, Deserialize)]
+struct SmafaDB {
+    version: u8,
+    fm_index: SaveableFMIndex
+}
+
 fn makedb(db_root: &str, db_fasta: &str){
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
     let mut sequence_length: usize = 0; // often 60
@@ -155,7 +161,11 @@ fn makedb(db_root: &str, db_fasta: &str){
         less: less,
         occ: occ
     };
-    let serialized = serde_json::to_string(&saveable_fm_index).unwrap();
+    let smafa_db = SmafaDB {
+        version: 1,
+        fm_index: saveable_fm_index,
+    };
+    let serialized = serde_json::to_string(&smafa_db).unwrap();
     let filename = db_root;
     let f = File::create(filename.clone()).unwrap();
     let mut writer = BufWriter::new(f);
@@ -181,7 +191,8 @@ fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
     let mut f = File::open(db_root).expect("file not found");
     let mut contents = String::new();
     f.read_to_string(&mut contents).expect("something went wrong reading the file");
-    let fm_saveable: SaveableFMIndex = serde_json::from_str(&contents).unwrap();
+    let smafa_db: SmafaDB = serde_json::from_str(&contents).unwrap();
+    let fm_saveable = smafa_db.fm_index;
 
     let sa = fm_saveable.suffix_array;
     let bwt = fm_saveable.bwt;
