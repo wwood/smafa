@@ -7,6 +7,8 @@ use env_logger::LogBuilder;
 
 extern crate bincode;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 
 extern crate clap;
@@ -58,7 +60,6 @@ fn set_log_level(matches: &clap::ArgMatches) {
     let mut log_level = LogLevelFilter::Info;
     if matches.is_present("verbose") {
         log_level = LogLevelFilter::Debug;
-        println!("hsas")
     }
     if matches.is_present("quiet") {
         log_level = LogLevelFilter::Error;
@@ -100,6 +101,14 @@ fn build_cli() -> App<'static, 'static> {
                 .args_from_usage(&query_args));
 }
 
+#[derive(Serialize, Deserialize)]
+struct SaveableFMIndex {
+    suffix_array: RawSuffixArray,
+    bwt: BWT,
+    less: Less,
+    occ: Occ
+}
+
 fn makedb(db_root: &str, db_fasta: &str){
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
     let mut sequence_length: usize = 0; // often 60
@@ -130,60 +139,30 @@ fn makedb(db_root: &str, db_fasta: &str){
     now = new_now;
     let sa = suffix_array(&text);
     new_now = Instant::now(); debug!("suffix array {:?}", new_now.duration_since(now)); now = new_now;
-    let bwt = bwt(&text, &sa);
+    let bwt1 = bwt(&text, &sa);
     new_now = Instant::now(); debug!("bwt {:?}", new_now.duration_since(now)); now = new_now;
-    let less = less(&bwt, &alphabet);
+    let less = less(&bwt1, &alphabet);
     new_now = Instant::now(); debug!("less {:?}", new_now.duration_since(now)); now = new_now;
-    let occ = Occ::new(&bwt, 3, &alphabet);
+    let occ = Occ::new(&bwt1, 3, &alphabet);
     new_now = Instant::now(); debug!("occ {:?}", new_now.duration_since(now));
     info!("Generated index in {} seconds.",
           Instant::now().duration_since(before_index_generation_time).as_secs());
 
-    {
-        let serialized = serde_json::to_string(&sa).unwrap();
-        let filename = db_root.to_owned()+".sa";
-        let f = File::create(filename.clone()).unwrap();
-        let mut writer = BufWriter::new(f);
-        debug!("Writing {}", filename);
-        writer.write(serialized.as_bytes()).unwrap();
-        debug!("Finished writing.")
-    }
-    {
-        let serialized = serde_json::to_string(&bwt).unwrap();
-        let filename = db_root.to_owned()+".bwt";
-        let f = File::create(filename.clone()).unwrap();
-        let mut writer = BufWriter::new(f);
-        debug!("Writing {}", filename);
-        writer.write(serialized.as_bytes()).unwrap();
-        debug!("Finished writing.")
-    }
-    {
-        let serialized = serde_json::to_string(&less).unwrap();
-        let filename = db_root.to_owned()+".less";
-        let f = File::create(filename.clone()).unwrap();
-        let mut writer = BufWriter::new(f);
-        debug!("Writing {}", filename);
-        writer.write(serialized.as_bytes()).unwrap();
-        debug!("Finished writing.")
-    }
-    {
-        let serialized = serde_json::to_string(&occ).unwrap();
-        let filename = db_root.to_owned()+".occ";
-        let f = File::create(filename.clone()).unwrap();
-        let mut writer = BufWriter::new(f);
-        debug!("Writing {}", filename);
-        writer.write(serialized.as_bytes()).unwrap();
-        debug!("Finished writing.")
-    }
+    let saveable_fm_index = SaveableFMIndex {
+        suffix_array: sa,
+        bwt: bwt1,
+        less: less,
+        occ: occ
+    };
+    let serialized = serde_json::to_string(&saveable_fm_index).unwrap();
+    let filename = db_root;
+    let f = File::create(filename.clone()).unwrap();
+    let mut writer = BufWriter::new(f);
+    debug!("Writing {}", filename);
+    writer.write(serialized.as_bytes()).unwrap();
+    debug!("Finished writing.")
 }
 
-// fn read_and_deserialise<T: Deserialize>(path: &str) -> &T {
-//     let mut f = File::open(path).expect("file not found");
-//     let mut contents = String::new();
-//     f.read_to_string(&mut contents).expect("something went wrong reading the file");
-//     let sa: T = serde_json::from_str(&contents).unwrap();
-//     return sa
-// }
 
 fn determine_sequence_length(text: &[u8]) -> usize {
     let mut count = 0;
@@ -197,40 +176,21 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 }
 
 
-
-
 fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
+    let mut f = File::open(db_root).expect("file not found");
+    let mut contents = String::new();
+    f.read_to_string(&mut contents).expect("something went wrong reading the file");
+    let fm_saveable: SaveableFMIndex = serde_json::from_str(&contents).unwrap();
 
-    let sa: RawSuffixArray;
-    {
-        let mut f = File::open(db_root.to_owned()+".sa").expect("file not found");
-        let mut contents = String::new();
-        f.read_to_string(&mut contents).expect("something went wrong reading the file");
-        sa = serde_json::from_str(&contents).unwrap();
-    }
-    let bwt: BWT;
-    {
-        let mut f = File::open(db_root.to_owned()+".bwt").expect("file not found");
-        let mut contents = String::new();
-        f.read_to_string(&mut contents).expect("something went wrong reading the file");
-        bwt = serde_json::from_str(&contents).unwrap();
-    }
-    let less: Less;
-    {
-        let mut f = File::open(db_root.to_owned()+".less").expect("file not found");
-        let mut contents = String::new();
-        f.read_to_string(&mut contents).expect("something went wrong reading the file");
-        less = serde_json::from_str(&contents).unwrap();
-    }
-    let occ: Occ;
-    {
-        let mut f = File::open(db_root.to_owned()+".occ").expect("file not found");
-        let mut contents = String::new();
-        f.read_to_string(&mut contents).expect("something went wrong reading the file");
-        occ = serde_json::from_str(&contents).unwrap();
-    }
+    let sa = fm_saveable.suffix_array;
+    let bwt = fm_saveable.bwt;
+    let less = fm_saveable.less;
+    let occ = fm_saveable.occ;
+
     let fm = FMIndex::new(&bwt, &less, &occ);
+    debug!("Inverting BWT ..");
     let text = bio::data_structures::bwt::invert_bwt(&bwt);
+    debug!("Finished.");
 
     let sequence_length = determine_sequence_length(&text);
     debug!("Found sequence length {}", sequence_length);
@@ -254,8 +214,8 @@ fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
             // is 60 as original). So the sequence is located in the text at
             // text[pos/61 .. pos+60] I think.
             for pos in some {
-                let start2 = pos / (sequence_length + 1);
-                let start = start2 * (sequence_length + 1);
+                let sequence_index = pos / (sequence_length + 1);
+                let start = sequence_index * (sequence_length + 1);
                 if !printed_seqs.contains(&start) {
                     if pos-start == 5*i {
                         printed_seqs.insert(start);
