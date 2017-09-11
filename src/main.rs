@@ -9,6 +9,7 @@ extern crate bincode;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate snap;
 
 extern crate clap;
 use clap::*;
@@ -166,9 +167,10 @@ fn makedb(db_root: &str, db_fasta: &str){
     };
     let filename = db_root;
     let f = File::create(filename.clone()).unwrap();
-    let mut writer = BufWriter::new(f);
+    let writer = BufWriter::new(f);
+    let mut snapper = snap::Writer::new(writer);
     debug!("Writing {}", filename);
-    bincode::serialize_into(&mut writer, &smafa_db, bincode::Infinite).unwrap();
+    bincode::serialize_into(&mut snapper, &smafa_db, bincode::Infinite).unwrap();
     debug!("Finished writing.")
 }
 
@@ -186,8 +188,9 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 
 
 fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
-    let mut f = File::open(db_root).expect("file not found");
-    let smafa_db: SmafaDB = bincode::deserialize_from(&mut f, bincode::Infinite).unwrap();
+    let f = File::open(db_root).expect("file not found");
+    let mut unsnapper = snap::Reader::new(f);
+    let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper, bincode::Infinite).unwrap();
     let fm_saveable = smafa_db.fm_index;
 
     let sa = fm_saveable.suffix_array;
