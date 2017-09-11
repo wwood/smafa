@@ -9,7 +9,6 @@ extern crate bincode;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
 
 extern crate clap;
 use clap::*;
@@ -23,7 +22,7 @@ use bio::data_structures::suffix_array::{suffix_array, RawSuffixArray};
 use bio::data_structures::bwt::*;
 use bio::io::fasta;
 
-use std::io::{Read, BufWriter, Write};
+use std::io::BufWriter;
 use std::fs::File;
 use std::time::Instant;
 use std::collections::HashSet;
@@ -165,12 +164,11 @@ fn makedb(db_root: &str, db_fasta: &str){
         version: 1,
         fm_index: saveable_fm_index,
     };
-    let serialized = serde_json::to_string(&smafa_db).unwrap();
     let filename = db_root;
     let f = File::create(filename.clone()).unwrap();
     let mut writer = BufWriter::new(f);
     debug!("Writing {}", filename);
-    writer.write(serialized.as_bytes()).unwrap();
+    bincode::serialize_into(&mut writer, &smafa_db, bincode::Infinite).unwrap();
     debug!("Finished writing.")
 }
 
@@ -189,9 +187,7 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 
 fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
     let mut f = File::open(db_root).expect("file not found");
-    let mut contents = String::new();
-    f.read_to_string(&mut contents).expect("something went wrong reading the file");
-    let smafa_db: SmafaDB = serde_json::from_str(&contents).unwrap();
+    let smafa_db: SmafaDB = bincode::deserialize_from(&mut f, bincode::Infinite).unwrap();
     let fm_saveable = smafa_db.fm_index;
 
     let sa = fm_saveable.suffix_array;
