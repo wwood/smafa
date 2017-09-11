@@ -86,7 +86,7 @@ fn build_cli() -> App<'static, 'static> {
                       -q, --quiet         'Unless there is an error, do not print logging information'";
 
     return App::new("smafa")
-        .version("0.1.0")
+        .version("0.1.0-pre")
         .author("Ben J. Woodcroft <benjwoodcroft near gmail.com>")
         .about("Read aligner for small pre-aligned sequences")
         .args_from_usage("-v, --verbose       'Print extra debug logging information'

@@ -1,6 +1,6 @@
 [package]
 name = "smafa"
-version = "0.1.0"
+version = "0.1.0-pre"
 authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 
 [dependencies]
