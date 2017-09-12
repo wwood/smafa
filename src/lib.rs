@@ -182,3 +182,18 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
     }
     info!("Printed {} hit(s).", num_hits)
 }
+
+
+#[cfg(test)]
+mod tests {
+    extern crate tempfile;
+    use super::*;
+
+    #[test]
+    fn makedb_and_query100seqs() {
+        let tf_db: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        //let tf_out: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        makedb(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna");
+        query(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna", 5);
+    }
+}
