@@ -112,7 +112,8 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 }
 
 
-pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
+pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
+             print_stream: &mut std::io::Write){
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
     let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper, bincode::Infinite).unwrap();
@@ -169,11 +170,11 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
                         }
                         if divergence <= max_divergence {
                             num_hits = num_hits + 1;
-                            println!("{}\t{}\t{}\t{}\t{}",
+                            print_stream.write_fmt(format_args!("{}\t{}\t{}\t{}\t{}\n",
                                      seq.id(),
                                      str::from_utf8(pattern).unwrap(),
                                      str::from_utf8(subject).unwrap(),
-                                     divergence, total)
+                                     divergence, total)).unwrap();
                         }
                     }
                 }
@@ -188,12 +189,17 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32){
 mod tests {
     extern crate tempfile;
     use super::*;
+    use std::io::Read;
 
     #[test]
     fn makedb_and_query100seqs() {
         let tf_db: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
-        //let tf_out: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
         makedb(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna");
-        query(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna", 5);
+        let mut res = vec!();
+        query(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna", 5, &mut res);
+        let mut expected: String = "".to_lowercase();
+        File::open("test/data/4.08.ribosomal_protein_L3_rplC.100random.fnaVitself.expected").
+            unwrap().read_to_string(&mut expected).unwrap();
+        assert_eq!(expected, String::from_utf8(res).unwrap());
     }
 }

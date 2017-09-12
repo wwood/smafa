@@ -21,7 +21,7 @@ fn main(){
             let query_fasta = m.value_of("QUERY_FASTA").unwrap();
             let max_divergence = value_t!(m.value_of("divergence"), u32).unwrap_or(5);
             set_log_level(m);
-            smafa::query(db_root, query_fasta, max_divergence);
+            smafa::query(db_root, query_fasta, max_divergence, &mut std::io::stdout());
         },
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
