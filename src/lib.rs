@@ -124,14 +124,31 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
     let less = fm_saveable.less;
     let occ = fm_saveable.occ;
 
-    let fm = FMIndex::new(&bwt, &less, &occ);
     debug!("Inverting BWT ..");
     let text = bio::data_structures::bwt::invert_bwt(&bwt);
     debug!("Finished.");
 
-    let sequence_length = determine_sequence_length(&text);
-    debug!("Found sequence length {}", sequence_length);
+    query_with_everything(
+        query_fasta, max_divergence, print_stream,
+        &sa, &bwt, &less, &occ, &text);
+}
 
+
+
+fn query_with_everything(
+    query_fasta: &str,
+    max_divergence: u32,
+    print_stream: &mut std::io::Write,
+    sa: &RawSuffixArray,
+    bwt: &BWT,
+    less: &Less,
+    occ: &Occ,
+    text: &Vec<u8>){
+
+    let fm = FMIndex::new(bwt, less, occ);
+
+    let sequence_length = determine_sequence_length(text);
+    debug!("Found sequence length {}", sequence_length);
 
     let reader = fasta::Reader::new(File::open(query_fasta).unwrap());
     let mut num_hits: u64 = 0;
@@ -145,7 +162,7 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
         let mut printed_seqs: HashSet<usize> = HashSet::new();
         for i in 0..((sequence_length-5) / 5) {
             let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
-            let some = intervals.occ(&sa);
+            let some = intervals.occ(sa);
 
             // The text is of length 60, plus the sentinal (if sequence_length
             // is 60 as original). So the sequence is located in the text at
