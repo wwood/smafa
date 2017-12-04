@@ -4,14 +4,14 @@ version = "0.1.0-pre"
 authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 
 [dependencies]
-bio = "0.15.*"
-log = "0.3.*"
-env_logger = "0.4.*"
-clap = "2.26.*"
-serde = "1.0.*"
-bincode = "0.8.*"
-serde_derive = "1.0.*"
-snap = "0.2.*"
+bio = "0.*, >=0.15.0"
+log = "0.*, >=0.3.8"
+env_logger = "0.*, >=0.4.3"
+clap = "2.*, >=2.26.0"
+serde = "1.*, >=1.0.11"
+bincode = "0.*, >=0.8.0"
+serde_derive = "1.*, >=1.0.11"
+snap = "0.*, >=0.2.2"
 
 [dev-dependencies]
-tempfile = "~2.1.6"
+tempfile = "~2.*, >=2.1.6"
