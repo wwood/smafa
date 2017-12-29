@@ -37,7 +37,12 @@ struct SmafaDB {
     fm_index: SaveableFMIndex
 }
 
-pub fn makedb(db_root: &str, db_fasta: &str){
+struct UnpackedDB {
+    saveable_fm_index: SaveableFMIndex,
+    text: Vec<u8>,
+}
+
+fn generate_unpacked_db(db_fasta: &str) -> UnpackedDB {
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
     let mut sequence_length: usize = 0; // often 60
     let mut text = vec![];
@@ -86,9 +91,18 @@ pub fn makedb(db_root: &str, db_fasta: &str){
         less: less,
         occ: occ
     };
+    let unpacked = UnpackedDB {
+        saveable_fm_index: saveable_fm_index,
+        text: text
+    };
+    return unpacked;
+}
+
+pub fn makedb(db_root: &str, db_fasta: &str){
+    let unpacked = generate_unpacked_db(db_fasta);
     let smafa_db = SmafaDB {
         version: 1,
-        fm_index: saveable_fm_index,
+        fm_index: unpacked.saveable_fm_index
     };
     let filename = db_root;
     let f = File::create(filename.clone()).unwrap();
