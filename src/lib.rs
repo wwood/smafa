@@ -128,22 +128,45 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
     let text = bio::data_structures::bwt::invert_bwt(&bwt);
     debug!("Finished.");
 
-    query_with_everything(
-        query_fasta, max_divergence, print_stream,
-        &sa, &bwt, &less, &occ, &text);
+    let mut num_hits: u64 = 0;
+    {
+        let query_printer = |hit: Hit| {
+            num_hits += 1;
+            print_stream.write_fmt(
+                format_args!("{}\t{}\t{}\t{}\t{}\n",
+                             hit.seq_id,
+                             str::from_utf8(hit.query_sequence).unwrap(),
+                             str::from_utf8(hit.hit_sequence).unwrap(),
+                             hit.divergence,
+                             hit.total)).unwrap();
+        };
+        query_with_everything(
+            query_fasta, max_divergence, query_printer,
+            &sa, &bwt, &less, &occ, &text);
+    }
+    info!("Printed {} hit(s).", num_hits);
 }
 
 
+struct Hit<'a, 'b, 'c> {
+    seq_id: &'a str,
+    query_sequence: &'b [u8],
+    hit_sequence: &'c [u8],
+    divergence: u32,
+    total: u32
+}
 
-fn query_with_everything(
+
+fn query_with_everything<T>(
     query_fasta: &str,
     max_divergence: u32,
-    print_stream: &mut std::io::Write,
+    mut hit_processor: T,
     sa: &RawSuffixArray,
     bwt: &BWT,
     less: &Less,
     occ: &Occ,
-    text: &Vec<u8>){
+    text: &Vec<u8>)
+    where T: FnMut(Hit) {
 
     let fm = FMIndex::new(bwt, less, occ);
 
@@ -151,7 +174,6 @@ fn query_with_everything(
     debug!("Found sequence length {}", sequence_length);
 
     let reader = fasta::Reader::new(File::open(query_fasta).unwrap());
-    let mut num_hits: u64 = 0;
     for record in reader.records() {
         let seq = record.unwrap();
         let pattern = seq.seq();
@@ -186,19 +208,20 @@ fn query_with_everything(
                             total = total + 1;
                         }
                         if divergence <= max_divergence {
-                            num_hits = num_hits + 1;
-                            print_stream.write_fmt(format_args!("{}\t{}\t{}\t{}\t{}\n",
-                                     seq.id(),
-                                     str::from_utf8(pattern).unwrap(),
-                                     str::from_utf8(subject).unwrap(),
-                                     divergence, total)).unwrap();
+                            let hit = Hit {
+                                seq_id: seq.id(),
+                                query_sequence: pattern,
+                                hit_sequence: subject,
+                                divergence: divergence,
+                                total: total
+                            };
+                            (hit_processor)(hit)
                         }
                     }
                 }
             }
         }
     }
-    info!("Printed {} hit(s).", num_hits)
 }
 
 
