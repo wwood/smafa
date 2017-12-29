@@ -5,7 +5,7 @@ authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 
 [dependencies]
 bio = "0.*, >=0.15.0"
-log = "0.*, >=0.3.8"
+log = "0.3.*, >=0.3.8"
 env_logger = "0.*, >=0.4.3"
 clap = "2.*, >=2.26.0"
 serde = "1.*, >=1.0.11"
