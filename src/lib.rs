@@ -261,6 +261,7 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
 
     // make a database out of the sequences
     let db = generate_unpacked_db(fasta_file);
+    new_now = Instant::now(); debug!("index generation time {:?}", new_now.duration_since(now)); now = new_now;
 
     // query the fasta file against that database
     // keep a HashMap of sequence id to vector of sequence ids
