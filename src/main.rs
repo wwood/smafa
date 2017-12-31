@@ -30,6 +30,13 @@ fn main(){
             set_log_level(m);
             smafa::makedb(db_root, db_fasta);
         },
+        Some("cluster") => {
+            let m = matches.subcommand_matches("cluster").unwrap();
+            let query_fasta = m.value_of("FASTA").unwrap();
+            let max_divergence = value_t!(m.value_of("divergence"), u32).unwrap_or(5);
+            set_log_level(m);
+            smafa::cluster(query_fasta, max_divergence, &mut std::io::stdout());
+        },
         _ => {
             app.print_help().unwrap();
             println!();
@@ -65,6 +72,11 @@ fn build_cli() -> App<'static, 'static> {
 
                       -v, --verbose       'Print extra debug logging information'
                       -q, --quiet         'Unless there is an error, do not print logging information'";
+    let cluster_args: &'static str = "<FASTA> 'Sequences to cluster'
+                      -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'
+
+                      -v, --verbose       'Print extra debug logging information'
+                      -q, --quiet         'Unless there is an error, do not print logging information'";
 
     return App::new("smafa")
         .version("0.1.0-pre")
@@ -79,6 +91,10 @@ fn build_cli() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("query")
                 .about("Search a database")
-                .args_from_usage(&query_args));
+                .args_from_usage(&query_args))
+        .subcommand(
+            SubCommand::with_name("cluster")
+                .about("cluster sequences")
+                .args_from_usage(&cluster_args));
 }
 
