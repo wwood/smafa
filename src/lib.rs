@@ -278,80 +278,137 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
     new_now = Instant::now(); debug!("printing time {:?}", new_now.duration_since(now));
 }
 
+
+
+
 struct ClusteringResults {
     representative_sequence_ids: BTreeSet<u32>,
     sequence_index_to_best_hit: HashMap<u32, BestClusterHit>,
     sequence_names: Vec<Box<String>>
 }
+
 fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u32) -> ClusteringResults {
-    // query the fasta file against that database
-    // keep a HashMap of sequence id to vector of sequence ids
+    let sa = &db.saveable_fm_index.suffix_array;
+    let bwt = &db.saveable_fm_index.bwt;
+    let less = &db.saveable_fm_index.less;
+    let occ = &db.saveable_fm_index.occ;
+    let text = &db.text;
+
+    let fm = FMIndex::new(bwt, less, occ);
+
+    let sequence_length = determine_sequence_length(text);
+    debug!("Found sequence length {}", sequence_length);
+
     let mut sequence_index_to_best_hit: HashMap<u32, BestClusterHit> = HashMap::new();
     let mut representative_sequence_indexes: BTreeSet<u32> = BTreeSet::new();
     let mut last_sequence_id = 0;
     let mut doing_first = true;
     let mut sequence_names = vec![];
-    {
-        let hit_processor = |hit: Hit| {
-            debug!("found {} {}", hit.query_sequence_index, hit.hit_sequence_index);
-            // if different to the last sequence, process the last and save this new
-            // one as the last.
-            if doing_first {
-                last_sequence_id = 0;
-                doing_first = false;
-                let seq_id = Box::new(String::from(hit.seq_id));
-                sequence_names.push(seq_id);
-            } else if hit.query_sequence_index != last_sequence_id {
-                let seq_id = Box::new(String::from(hit.seq_id));
-                sequence_names.push(seq_id);
-                if !sequence_index_to_best_hit.contains_key(&last_sequence_id) {
-                    representative_sequence_indexes.insert(last_sequence_id);
-                }
-                last_sequence_id = hit.query_sequence_index;
-            }
 
-            // if the hit sequence is different to the query sequence
-            let query_sequence_index = hit.query_sequence_index;
-            if query_sequence_index != hit.hit_sequence_index as u32 &&
-                representative_sequence_indexes.contains(&(hit.hit_sequence_index as u32)) {
-                    // if it is better than the current hit, replace it
-                    if sequence_index_to_best_hit.contains_key(&query_sequence_index){
-                        // work out the true/false for the if statement here to
-                        // get around the borrow checker.
-                        let mut found_a_better_one = false;
-                        {
-                            let last_best = sequence_index_to_best_hit.get(&query_sequence_index).unwrap();
-                            if hit.divergence < last_best.divergence ||
-                                (hit.divergence == last_best.divergence &&
-                                 (hit.hit_sequence_index as u32) < last_best.hit_sequence_index) {
-                                found_a_better_one = true;
+    let reader = fasta::Reader::new(File::open(fasta_file).unwrap());
+    let mut query_sequence_index: u32 = 0;
+    for record in reader.records() {
+        let seq = record.unwrap();
+        let pattern = seq.seq();
+        if pattern.len() != sequence_length {
+            eprintln!("Sequence '{}' is not the same length as sequences in the database.", seq.id());
+            process::exit(3);
+        }
+        let mut printed_seqs: HashSet<usize> = HashSet::new();
+        for i in 0..((sequence_length-5) / 5) {
+            let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
+            let some = intervals.occ(sa);
+
+            // The text is of length 60, plus the sentinal (if sequence_length
+            // is 60 as original). So the sequence is located in the text at
+            // text[pos/61 .. pos+60] I think.
+            for pos in some {
+                let sequence_index = pos / (sequence_length + 1);
+                let start = sequence_index * (sequence_length + 1);
+                if !printed_seqs.contains(&start) {
+                    if pos-start == 5*i {
+                        printed_seqs.insert(start);
+                        let subject = &text[(start..(start+sequence_length))];
+                        let mut divergence = 0;
+                        let mut total = 0;
+                        for i in 0..sequence_length {
+                            if subject[i] != pattern[i] {
+                                divergence = divergence + 1;
+                                if divergence > max_divergence {
+                                    break
+                                }
                             }
+                            total = total + 1;
                         }
-                        if found_a_better_one {
-                            sequence_index_to_best_hit.insert(
-                                query_sequence_index,
-                                BestClusterHit {
-                                    divergence: hit.divergence,
-                                    hit_sequence_index: hit.hit_sequence_index as u32
-                                });
-                        };
-                    } else {
-                        // else if there is no hit in the hashmap, add it
-                        sequence_index_to_best_hit.insert(
-                            query_sequence_index,
-                            BestClusterHit {
-                                divergence: hit.divergence,
-                                hit_sequence_index: hit.hit_sequence_index as u32
-                            });
+                        if divergence <= max_divergence {
+                            let hit = Hit {
+                                seq_id: seq.id(),
+                                query_sequence_index: query_sequence_index,
+                                hit_sequence_index: sequence_index,
+                                query_sequence: pattern,
+                                hit_sequence: subject,
+                                divergence: divergence,
+                                total: total
+                            };
+
+                            debug!("found {} {}", hit.query_sequence_index, hit.hit_sequence_index);
+                            // if different to the last sequence, process the last and save this new
+                            // one as the last.
+                            if doing_first {
+                                last_sequence_id = 0;
+                                doing_first = false;
+                                let seq_id = Box::new(String::from(hit.seq_id));
+                                sequence_names.push(seq_id);
+                            } else if hit.query_sequence_index != last_sequence_id {
+                                let seq_id = Box::new(String::from(hit.seq_id));
+                                sequence_names.push(seq_id);
+                                if !sequence_index_to_best_hit.contains_key(&last_sequence_id) {
+                                    representative_sequence_indexes.insert(last_sequence_id);
+                                }
+                                last_sequence_id = hit.query_sequence_index;
+                            }
+
+                            // if the hit sequence is different to the query sequence
+                            let query_sequence_index = hit.query_sequence_index;
+                            if query_sequence_index != hit.hit_sequence_index as u32 &&
+                                representative_sequence_indexes.contains(&(hit.hit_sequence_index as u32)) {
+                                    // if it is better than the current hit, replace it
+                                    if sequence_index_to_best_hit.contains_key(&query_sequence_index){
+                                        // work out the true/false for the if statement here to
+                                        // get around the borrow checker.
+                                        let mut found_a_better_one = false;
+                                        {
+                                            let last_best = sequence_index_to_best_hit.get(&query_sequence_index).unwrap();
+                                            if hit.divergence < last_best.divergence ||
+                                                (hit.divergence == last_best.divergence &&
+                                                 (hit.hit_sequence_index as u32) < last_best.hit_sequence_index) {
+                                                    found_a_better_one = true;
+                                                }
+                                        }
+                                        if found_a_better_one {
+                                            sequence_index_to_best_hit.insert(
+                                                query_sequence_index,
+                                                BestClusterHit {
+                                                    divergence: hit.divergence,
+                                                    hit_sequence_index: hit.hit_sequence_index as u32
+                                                });
+                                        };
+                                    } else {
+                                        // else if there is no hit in the hashmap, add it
+                                        sequence_index_to_best_hit.insert(
+                                            query_sequence_index,
+                                            BestClusterHit {
+                                                divergence: hit.divergence,
+                                                hit_sequence_index: hit.hit_sequence_index as u32
+                                            });
+                                    }
+                                }
+                        }
                     }
                 }
-        };
-
-        // for each hit, if there are any hits
-        let sdb = &db.saveable_fm_index;
-        query_with_everything(
-            fasta_file, max_divergence, hit_processor,
-            &sdb.suffix_array, &sdb.bwt, &sdb.less, &sdb.occ, &db.text);
+            }
+        }
+        query_sequence_index += 1;
     }
 
     // finish the last one if it is a representative.
@@ -365,6 +422,7 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
         sequence_names: sequence_names
     }
 }
+
 
 fn print_uc_file(
     representative_sequence_ids: &BTreeSet<u32>,
