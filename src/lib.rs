@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "unstable", feature(test))]
+
 extern crate bio;
 #[macro_use]
 extern crate log;
@@ -455,4 +457,22 @@ mod tests {
             unwrap().read_to_string(&mut expected).unwrap();
         assert_eq!(expected, String::from_utf8(res).unwrap());
     }
+}
+
+#[cfg(all(feature = "unstable", test))]
+mod benches {
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn bench_sra_euk_seqs(b: &mut test::Bencher){
+        let fasta = "test/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
+        let db = generate_unpacked_db(fasta);
+        b.iter(|| do_clustering(
+            &db,
+            fasta,
+            5
+        ));
+    }
+
 }

@@ -30,6 +30,12 @@ ARGS:
     <QUERY_FASTA>    Query sequences to search with
 ```
 
+## Development notes
+To run benchmarks, rust nightly is required. Then run
+```
+rustup run nightly cargo bench --features unstable
+```
+
 # License
 Copyright Ben Woodcroft. Licensed under GPL3+. See LICENSE.txt in this
 repository.
