@@ -327,9 +327,6 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
                             for (s,p) in subject.iter().zip(pattern) {
                                 if s != p {
                                     divergence = divergence + 1;
-                                    if divergence > max_divergence {
-                                        break
-                                    }
                                 }
                             }
                             if divergence <= max_divergence &&
