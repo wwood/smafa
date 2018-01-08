@@ -263,6 +263,25 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
     let db = generate_unpacked_db(fasta_file);
     new_now = Instant::now(); debug!("index generation time {:?}", new_now.duration_since(now)); now = new_now;
 
+    let res = do_clustering(&db, &fasta_file, max_divergence);
+
+    // print out the clusters
+    new_now = Instant::now(); debug!("clustering search time {:?}", new_now.duration_since(now)); now = new_now;
+    print_uc_file(
+        &res.representative_sequence_ids,
+        &res.sequence_index_to_best_hit,
+        &res.sequence_names,
+        determine_sequence_length(&db.text),
+        print_stream);
+    new_now = Instant::now(); debug!("printing time {:?}", new_now.duration_since(now));
+}
+
+struct ClusteringResults {
+    representative_sequence_ids: BTreeSet<u32>,
+    sequence_index_to_best_hit: HashMap<u32, BestClusterHit>,
+    sequence_names: Vec<Box<String>>
+}
+fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u32) -> ClusteringResults {
     // query the fasta file against that database
     // keep a HashMap of sequence id to vector of sequence ids
     let mut sequence_index_to_best_hit: HashMap<u32, BestClusterHit> = HashMap::new();
@@ -327,7 +346,7 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
         };
 
         // for each hit, if there are any hits
-        let sdb = db.saveable_fm_index;
+        let sdb = &db.saveable_fm_index;
         query_with_everything(
             fasta_file, max_divergence, hit_processor,
             &sdb.suffix_array, &sdb.bwt, &sdb.less, &sdb.occ, &db.text);
@@ -338,17 +357,12 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
         representative_sequence_indexes.insert(last_sequence_id);
     }
 
-    // print out the clusters
-    new_now = Instant::now(); debug!("clustering search time {:?}", new_now.duration_since(now)); now = new_now;
-    print_uc_file(
-        &representative_sequence_indexes,
-        &sequence_index_to_best_hit,
-        &sequence_names,
-        determine_sequence_length(&db.text),
-        print_stream);
-    new_now = Instant::now(); debug!("printing time {:?}", new_now.duration_since(now));
+    return ClusteringResults {
+        representative_sequence_ids: representative_sequence_indexes,
+        sequence_index_to_best_hit: sequence_index_to_best_hit,
+        sequence_names: sequence_names
+    }
 }
-
 
 fn print_uc_file(
     representative_sequence_ids: &BTreeSet<u32>,
@@ -401,7 +415,6 @@ fn print_uc_file(
                  sequence_names[*member as usize]).unwrap();
     }
 }
-
 
 #[cfg(test)]
 mod tests {
