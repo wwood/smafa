@@ -168,8 +168,6 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
 
 struct Hit<'a, 'b, 'c> {
     seq_id: &'a str,
-    query_sequence_index: u32,
-    hit_sequence_index: usize,
     query_sequence: &'b [u8],
     hit_sequence: &'c [u8],
     divergence: u32,
@@ -194,7 +192,6 @@ fn query_with_everything<T>(
     debug!("Found sequence length {}", sequence_length);
 
     let reader = fasta::Reader::new(File::open(query_fasta).unwrap());
-    let mut query_sequence_index: u32 = 0;
     for record in reader.records() {
         let seq = record.unwrap();
         let pattern = seq.seq();
@@ -231,8 +228,6 @@ fn query_with_everything<T>(
                         if divergence <= max_divergence {
                             let hit = Hit {
                                 seq_id: seq.id(),
-                                query_sequence_index: query_sequence_index,
-                                hit_sequence_index: sequence_index,
                                 query_sequence: pattern,
                                 hit_sequence: subject,
                                 divergence: divergence,
@@ -244,7 +239,6 @@ fn query_with_everything<T>(
                 }
             }
         }
-        query_sequence_index += 1;
     }
 }
 
