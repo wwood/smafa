@@ -210,31 +210,25 @@ fn query_with_everything<T>(
             for pos in some {
                 let sequence_index = pos / (sequence_length + 1);
                 let start = sequence_index * (sequence_length + 1);
-                if !printed_seqs.contains(&start) {
-                    if pos-start == 5*i {
-                        printed_seqs.insert(start);
-                        let subject = &text[(start..(start+sequence_length))];
-                        let mut divergence = 0;
-                        let mut total = 0;
-                        for i in 0..sequence_length {
-                            if subject[i] != pattern[i] {
-                                divergence = divergence + 1;
-                                if divergence > max_divergence {
-                                    break
-                                }
-                            }
-                            total = total + 1;
+                if pos-start == 5*i && !printed_seqs.contains(&start) {
+                    printed_seqs.insert(start);
+                    let subject = &text[(start..(start+sequence_length))];
+                    let mut divergence = 0;
+                    let total = subject.len();
+                    for (s,p) in subject.iter().zip(pattern) {
+                        if s != p {
+                            divergence = divergence + 1;
                         }
-                        if divergence <= max_divergence {
-                            let hit = Hit {
-                                seq_id: seq.id(),
-                                query_sequence: pattern,
-                                hit_sequence: subject,
-                                divergence: divergence,
-                                total: total
-                            };
-                            (hit_processor)(hit)
-                        }
+                    }
+                    if divergence <= max_divergence {
+                        let hit = Hit {
+                            seq_id: seq.id(),
+                            query_sequence: pattern,
+                            hit_sequence: subject,
+                            divergence: divergence,
+                            total: total as u32
+                        };
+                        (hit_processor)(hit)
                     }
                 }
             }
@@ -480,7 +474,26 @@ mod benches {
     use super::*;
 
     #[bench]
-    fn bench_sra_euk_seqs(b: &mut test::Bencher){
+    fn bench_sra_euk_seqs_query(b: &mut test::Bencher) {
+        let fasta = "test/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
+        let db = generate_unpacked_db(fasta);
+        b.iter(|| {
+            let mut num_hits = 0;
+            let query_printer = |hit: Hit| {
+                num_hits += 1;
+            };
+            query_with_everything(
+                fasta, 5, query_printer,
+                &db.saveable_fm_index.suffix_array,
+                &db.saveable_fm_index.bwt,
+                &db.saveable_fm_index.less,
+                &db.saveable_fm_index.occ,
+                &db.text);
+        });
+    }
+
+    #[bench]
+    fn bench_sra_euk_seqs_clustering(b: &mut test::Bencher) {
         let fasta = "test/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
         let db = generate_unpacked_db(fasta);
         b.iter(|| do_clustering(
