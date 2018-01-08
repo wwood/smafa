@@ -324,87 +324,88 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
             // text[pos/61 .. pos+60] I think.
             for pos in some {
                 let sequence_index = pos / (sequence_length + 1);
-                let start = sequence_index * (sequence_length + 1);
-                if !printed_seqs.contains(&start) {
-                    if pos-start == 5*i {
-                        printed_seqs.insert(start);
-                        let subject = &text[(start..(start+sequence_length))];
-                        let mut divergence = 0;
-                        let mut total = 0;
-                        for i in 0..sequence_length {
-                            if subject[i] != pattern[i] {
-                                divergence = divergence + 1;
-                                if divergence > max_divergence {
-                                    break
+                if sequence_index <= query_sequence_index as usize {
+                    let start = sequence_index * (sequence_length + 1);
+                    if pos-start == 5*i &&
+                        !printed_seqs.contains(&start) {
+                            printed_seqs.insert(start);
+                            let subject = &text[(start..(start+sequence_length))];
+                            let mut divergence = 0;
+                            let mut total = 0;
+                            for i in 0..sequence_length {
+                                if subject[i] != pattern[i] {
+                                    divergence = divergence + 1;
+                                    if divergence > max_divergence {
+                                        break
+                                    }
                                 }
+                                total = total + 1;
                             }
-                            total = total + 1;
-                        }
-                        if divergence <= max_divergence {
-                            let hit = Hit {
-                                seq_id: seq.id(),
-                                query_sequence_index: query_sequence_index,
-                                hit_sequence_index: sequence_index,
-                                query_sequence: pattern,
-                                hit_sequence: subject,
-                                divergence: divergence,
-                                total: total
-                            };
+                            if divergence <= max_divergence {
+                                let hit = Hit {
+                                    seq_id: seq.id(),
+                                    query_sequence_index: query_sequence_index,
+                                    hit_sequence_index: sequence_index,
+                                    query_sequence: pattern,
+                                    hit_sequence: subject,
+                                    divergence: divergence,
+                                    total: total
+                                };
 
-                            debug!("found {} {}", hit.query_sequence_index, hit.hit_sequence_index);
-                            // if different to the last sequence, process the last and save this new
-                            // one as the last.
-                            if doing_first {
-                                last_sequence_id = 0;
-                                doing_first = false;
-                                let seq_id = Box::new(String::from(hit.seq_id));
-                                sequence_names.push(seq_id);
-                            } else if hit.query_sequence_index != last_sequence_id {
-                                let seq_id = Box::new(String::from(hit.seq_id));
-                                sequence_names.push(seq_id);
-                                if !sequence_index_to_best_hit.contains_key(&last_sequence_id) {
-                                    representative_sequence_indexes.insert(last_sequence_id);
+                                //debug!("found {} {}", hit.query_sequence_index, hit.hit_sequence_index);
+                                // if different to the last sequence, process the last and save this new
+                                // one as the last.
+                                if doing_first {
+                                    last_sequence_id = 0;
+                                    doing_first = false;
+                                    let seq_id = Box::new(String::from(hit.seq_id));
+                                    sequence_names.push(seq_id);
+                                } else if hit.query_sequence_index != last_sequence_id {
+                                    let seq_id = Box::new(String::from(hit.seq_id));
+                                    sequence_names.push(seq_id);
+                                    if !sequence_index_to_best_hit.contains_key(&last_sequence_id) {
+                                        representative_sequence_indexes.insert(last_sequence_id);
+                                    }
+                                    last_sequence_id = hit.query_sequence_index;
                                 }
-                                last_sequence_id = hit.query_sequence_index;
-                            }
 
-                            // if the hit sequence is different to the query sequence
-                            let query_sequence_index = hit.query_sequence_index;
-                            if query_sequence_index != hit.hit_sequence_index as u32 &&
-                                representative_sequence_indexes.contains(&(hit.hit_sequence_index as u32)) {
-                                    // if it is better than the current hit, replace it
-                                    if sequence_index_to_best_hit.contains_key(&query_sequence_index){
-                                        // work out the true/false for the if statement here to
-                                        // get around the borrow checker.
-                                        let mut found_a_better_one = false;
-                                        {
-                                            let last_best = sequence_index_to_best_hit.get(&query_sequence_index).unwrap();
-                                            if hit.divergence < last_best.divergence ||
-                                                (hit.divergence == last_best.divergence &&
-                                                 (hit.hit_sequence_index as u32) < last_best.hit_sequence_index) {
-                                                    found_a_better_one = true;
-                                                }
-                                        }
-                                        if found_a_better_one {
+                                // if the hit sequence is different to the query sequence
+                                let query_sequence_index = hit.query_sequence_index;
+                                if query_sequence_index != hit.hit_sequence_index as u32 &&
+                                    representative_sequence_indexes.contains(&(hit.hit_sequence_index as u32)) {
+                                        // if it is better than the current hit, replace it
+                                        if sequence_index_to_best_hit.contains_key(&query_sequence_index){
+                                            // work out the true/false for the if statement here to
+                                            // get around the borrow checker.
+                                            let mut found_a_better_one = false;
+                                            {
+                                                let last_best = sequence_index_to_best_hit.get(&query_sequence_index).unwrap();
+                                                if hit.divergence < last_best.divergence ||
+                                                    (hit.divergence == last_best.divergence &&
+                                                     (hit.hit_sequence_index as u32) < last_best.hit_sequence_index) {
+                                                        found_a_better_one = true;
+                                                    }
+                                            }
+                                            if found_a_better_one {
+                                                sequence_index_to_best_hit.insert(
+                                                    query_sequence_index,
+                                                    BestClusterHit {
+                                                        divergence: hit.divergence,
+                                                        hit_sequence_index: hit.hit_sequence_index as u32
+                                                    });
+                                            };
+                                        } else {
+                                            // else if there is no hit in the hashmap, add it
                                             sequence_index_to_best_hit.insert(
                                                 query_sequence_index,
                                                 BestClusterHit {
                                                     divergence: hit.divergence,
                                                     hit_sequence_index: hit.hit_sequence_index as u32
                                                 });
-                                        };
-                                    } else {
-                                        // else if there is no hit in the hashmap, add it
-                                        sequence_index_to_best_hit.insert(
-                                            query_sequence_index,
-                                            BestClusterHit {
-                                                divergence: hit.divergence,
-                                                hit_sequence_index: hit.hit_sequence_index as u32
-                                            });
+                                        }
                                     }
-                                }
+                            }
                         }
-                    }
                 }
             }
         }
