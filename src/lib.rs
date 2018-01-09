@@ -479,7 +479,7 @@ mod benches {
         let db = generate_unpacked_db(fasta);
         b.iter(|| {
             let mut num_hits = 0;
-            let query_printer = |hit: Hit| {
+            let query_printer = |_hit: Hit| {
                 num_hits += 1;
             };
             query_with_everything(
