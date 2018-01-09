@@ -22,7 +22,10 @@ To run the aligner, first make a db with `smafa makedb` and then query that
 database with `smafa query`. To see how to use these modes, use e.g. `smafa
 makedb -h`.
 
-To run the in clustering mode, use `smafa cluser`.
+To run the in clustering mode, use `smafa cluster`. Note that the clustering
+mode implements a greedy algorithm, where sequences encountered earlier in the
+input file are taken as cluster representatives, unless they are sufficiently
+similar to, i.e. cluster with, a previously encountered sequence.
 
 ## Help
 If you have any questions or comments, send a message to the 
