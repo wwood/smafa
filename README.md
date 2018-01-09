@@ -1,34 +1,33 @@
 # A read aligner for aligned sequences
 
-smafa attempts to align sequences to a database of aligned sequences. Currently,
-it only handles query and db sequences which are all the same length, in concert
-with [SingleM](https://github.com/wwood/singlem). To run it, you'll need
-[Rust](http://rust-lang.org/) 1.20+. Then download and run smafa:
+[![Travis](https://img.shields.io/travis/wwood/smafa.svg?style=flat-square)](https://travis-ci.org/wwood/smafa)
+
+Smafa attempts to align or cluster pre-aligned biological sequences, handling
+sequences which are all the same length. The main use case is through
+[SingleM](https://github.com/wwood/singlem), although it can be used without
+independently without issue.
+
+## Installation
+
+To run it, you'll need [Rust](http://rust-lang.org/) 1.20+. Then smafa can be
+installed using cargo:
 
 ```
-$ git clone https://github.com/wwood/smafa
-$ cd smafa
-$ cargo run --release -- -h
-
-Ben J. Woodcroft <benjwoodcroft near gmail.com>
-Read aligner for small pre-aligned sequences
-
-USAGE:
-    smafa [FLAGS] [OPTIONS] <DB_FASTA> <QUERY_FASTA>
-
-FLAGS:
-    -h, --help       Prints help information
-    -q, --quiet      Unless there is an error, do not print logging information
-    -V, --version    Prints version information
-    -v, --verbose    Print extra debug logging information
-
-OPTIONS:
-    -d, --divergence <INTEGER>    Maximum number of mismatches in reported hits [default: 5]
-
-ARGS:
-    <DB_FASTA>       Subject sequences to search against
-    <QUERY_FASTA>    Query sequences to search with
+cargo install smafa
 ```
+
+## Usage
+
+To run the aligner, first make a db with `smafa makedb` and then query that
+database with `smafa query`. To see how to use these modes, use e.g. `smafa
+makedb -h`.
+
+To run the in clustering mode, use `smafa cluser`.
+
+## Help
+If you have any questions or comments, send a message to the 
+[SupportM mailing list](https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!forum/supportm)
+or raise a [GitHib issue](https://github.com/wwood/smafa/issues).
 
 ## Development notes
 To run benchmarks, rust nightly is required. Then run
@@ -36,6 +35,12 @@ To run benchmarks, rust nightly is required. Then run
 rustup run nightly cargo bench --features unstable
 ```
 
-# License
-Copyright Ben Woodcroft. Licensed under GPL3+. See LICENSE.txt in this
-repository.
+## Citation
+Woodcroft, B. Community diversity in metagenomes: one, many and thousands.
+Winter School in Mathematical and Computational Biology.
+http://bioinformatics.org.au/ws16/speaker-items/ben-woodcroft/#tab-f2e1404e449518dbab9
+
+## License
+Smafa is written by [BenWoodcroft](http://ecogenomic.org/personnel/dr-ben-woodcroft)
+(@wwood) at the [Australian Centre for Ecogenomics (UQ)](http://ecogenomic.org/)
+and is licensed under [GPL3 or later](https://gnu.org/licenses/gpl.html).
