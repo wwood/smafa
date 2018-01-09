@@ -1,7 +1,7 @@
 [package]
 name = "smafa"
 version = "0.1.0-pre"
-license = "GPL3+"
+license = "GPL-3.0"
 description = "Biological sequence aligner for aligned sequences."
 homepage = "https://github.com/wwood/smafa"
 repository = "https://github.com/wwood/smafa"
