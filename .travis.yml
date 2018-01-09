@@ -6,6 +6,8 @@ rust:
   - beta
   - stable
 
+cache: cargo
+
 os:
   - linux
   - osx
