@@ -94,7 +94,7 @@ fn build_cli() -> App<'static, 'static> {
                 .args_from_usage(&query_args))
         .subcommand(
             SubCommand::with_name("cluster")
-                .about("cluster sequences")
+                .about("Cluster sequences greedily, preferring sequences towards front of file")
                 .args_from_usage(&cluster_args));
 }
 
