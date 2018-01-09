@@ -1,6 +1,12 @@
 [package]
 name = "smafa"
 version = "0.1.0-pre"
+license = "GPL3+"
+description = "Biological sequence aligner for aligned sequences."
+homepage = "https://github.com/wwood/smafa"
+repository = "https://github.com/wwood/smafa"
+documentation = "https://github.com/wwood/smafa"
+readme = "README.md"
 authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 
 [dependencies]
