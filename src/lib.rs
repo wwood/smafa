@@ -422,8 +422,8 @@ fn print_uc_file(
                  alignment_length,
                  perc_id,
                  alignment_length,
-                 sequence_names[rep_id as usize],
-                 sequence_names[*member as usize]).unwrap();
+                 sequence_names[*member as usize],
+                 sequence_names[rep_id as usize]).unwrap();
     }
 }
 
