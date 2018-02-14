@@ -361,7 +361,7 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
             }
         }
         // Account for singletons
-        if sequence_index_to_best_hit.is_empty() {
+        if !sequence_index_to_best_hit.contains_key(&query_sequence_index) {
             representative_sequence_indexes.insert(query_sequence_index);
         }
         query_sequence_index += 1;
@@ -465,6 +465,22 @@ mod tests {
         File::open("test/data/random2_plus_last_like_first.fna.cluster-divergence0.uc").
             unwrap().read_to_string(&mut expected).unwrap();
         assert_eq!(expected, String::from_utf8(res).unwrap());
+    }
+
+    #[test]
+    fn test_cluster_many_seqs() {
+        let fasta = "test/data/singlem_plot_test.fna";
+        let mut res = vec!();
+        cluster(fasta, 5, &mut res);
+        let mut expected: String = "".to_lowercase();
+        // expected string not manually verified except that the correct number
+        // of outputs is observed.
+        File::open("test/data/singlem_plot_test.fna.uc").
+            unwrap().read_to_string(&mut expected).unwrap();
+        let mut expected_sorted: Vec<&str> = expected.split("\n").collect();
+        let observed = String::from_utf8(res).unwrap();
+        let mut observed_sorted: Vec<&str> = observed.split("\n").collect();
+        assert_eq!(expected_sorted.sort(), observed_sorted.sort());
     }
 }
 
