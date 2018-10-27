@@ -149,7 +149,8 @@ mod tests {
         assert_eq!(
             "ATGC\tATGC
 ATGG\tATGC
-AAAA\tAAAA",
+AAAA\tAAAA
+",
             str::from_utf8(stream.get_ref()).unwrap())
     }
 }
