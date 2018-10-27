@@ -35,7 +35,12 @@ fn main(){
             let query_fasta = m.value_of("FASTA").unwrap();
             let max_divergence = value_t!(m.value_of("divergence"), u32).unwrap_or(5);
             set_log_level(m);
-            smafa::cluster(query_fasta, max_divergence, &mut std::io::stdout());
+            if m.is_present("fragment-method") {
+                smafa::fragment_clusterer::cluster_by_fragment(
+                    query_fasta, max_divergence as u8, &mut std::io::stdout());
+            } else {
+                smafa::cluster(query_fasta, max_divergence, &mut std::io::stdout());
+            }
         },
         _ => {
             app.print_help().unwrap();
@@ -95,6 +100,9 @@ fn build_cli() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("cluster")
                 .about("Cluster sequences greedily, preferring sequences towards front of file")
+                .arg(Arg::with_name("fragment-method")
+                     .long("fragment-method")
+                     .help("Use the 'fragment' method for clustering"))
                 .args_from_usage(&cluster_args));
 }
 

@@ -1,5 +1,7 @@
 #![cfg_attr(feature = "unstable", feature(test))]
 
+pub mod fragment_clusterer;
+
 extern crate bio;
 #[macro_use]
 extern crate log;
