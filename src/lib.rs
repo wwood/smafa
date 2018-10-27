@@ -136,7 +136,9 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
              print_stream: &mut std::io::Write){
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
+    debug!("Deserialising DB ..");
     let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper, bincode::Infinite).unwrap();
+    debug!("Finished deserialising DB.");
     let fm_saveable = smafa_db.fm_index;
 
     let sa = fm_saveable.suffix_array;
