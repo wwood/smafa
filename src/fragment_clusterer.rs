@@ -127,7 +127,7 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
                 }
                 fragment_strings.push(frags);
                 let s = str::from_utf8(&pattern).unwrap();
-                writeln!(print_stream, "{}\t{}", s, s);
+                writeln!(print_stream, "{}\t{}", s, s).unwrap();
             }
         }
     }
