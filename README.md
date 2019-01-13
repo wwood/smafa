@@ -4,13 +4,21 @@
 
 Smafa attempts to align or cluster pre-aligned biological sequences, handling
 sequences which are all the same length. The main use case is through
-[SingleM](https://github.com/wwood/singlem), although it can be used without
-independently without issue.
+[SingleM](https://github.com/wwood/singlem), although it can be used
+independently without issue to search and cluster other pre-aligned sequences.
 
 ## Installation
 
-To run it, you'll need [Rust](http://rust-lang.org/) 1.20+. Then smafa can be
-installed using cargo:
+### Binary download
+
+A statically linked executable is available at the
+[releases](https://github.com/wwood/smafa/releases) page. Given you are running
+x86-64 Linux, it should be possible to download and run smafa directly.
+
+### Installation through Cargo
+
+Smafa can be installed in the usual way [Rust](http://rust-lang.org/) packages
+are installed. After installing Rust, smafa can be installed using cargo:
 
 ```
 cargo install smafa
@@ -28,12 +36,12 @@ input file are taken as cluster representatives, unless they are sufficiently
 similar to, i.e. cluster with, a previously encountered sequence.
 
 ## Help
-If you have any questions or comments, send a message to the 
-[SupportM mailing list](https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!forum/supportm)
+If you have any questions or comments, send a message to the [SupportM mailing
+list](https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!forum/supportm)
 or raise a [GitHib issue](https://github.com/wwood/smafa/issues).
 
 ## Development notes
-To run benchmarks, rust nightly is required. Then run
+To run benchmarks, rust nightly is required. Then run:
 ```
 rustup run nightly cargo bench --features unstable
 ```
