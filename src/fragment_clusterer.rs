@@ -23,6 +23,7 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
     // fragment index to hash of str to list of cluster ids with that string
     let mut fragment_hash: Vec<HashMap<Vec<u8>, Vec<u32>>> = vec!();
     let mut next_cluster_id: u32 = 0;
+    let mut seen_sequences: HashSet<Vec<u8>> = HashSet::new();
 
     while reader.read(&mut record).is_ok() {
         let pattern: Vec<u8> = record.seq().to_vec();
@@ -57,6 +58,11 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
             current_fragments.push(subseq);
         }
         debug!("current fragments: {:?}", current_fragments);
+
+        if seen_sequences.contains(&pattern) {
+            debug!("Already seen this sequence, skipping");
+            continue;
+        }
 
         // for each sequence in the fasta file
         // for each fragment index
@@ -131,6 +137,8 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
                 writeln!(print_stream, "{}\t{}", s, s).unwrap();
             }
         }
+
+        seen_sequences.insert(pattern);
     }
 }
 
@@ -160,6 +168,22 @@ AAAA\tAAAA
         let mut stream = Cursor::new(Vec::new());
         cluster_by_fragment(
             "test/data/cluster_bug1.fna",
+            2,
+            &mut stream);
+        assert_eq!(
+            "ATGCAAAAA\tATGCAAAAA\n\
+             ATAAAAAAA\tATGCAAAAA\n\
+             TTAAAAAAA\tTTAAAAAAA\n",
+            str::from_utf8(stream.get_ref()).unwrap())
+    }
+
+    #[test]
+    fn test_best_hit_changes_bug(){
+        // seq4 in the file shouldn't be reported otherwise there are two
+        // sequences that are the same but are given different centroids.
+        let mut stream = Cursor::new(Vec::new());
+        cluster_by_fragment(
+            "test/data/cluster_best_hit_changes.fna",
             2,
             &mut stream);
         assert_eq!(
