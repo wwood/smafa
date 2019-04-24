@@ -89,9 +89,10 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
                             }
                     }
                 }
-                if best_divergence == None ||
-                    divergence < best_divergence.unwrap() ||
-                    (divergence == best_divergence.unwrap() && *cluster_id < best_cluster_id.unwrap()){
+                if divergence <= max_divergence &&
+                    (best_divergence == None ||
+                     divergence < best_divergence.unwrap() ||
+                     (divergence == best_divergence.unwrap() && *cluster_id < best_cluster_id.unwrap())) {
                         debug!("Current best cluster for {:?} is now {}", current_fragments, *cluster_id);
                         best_divergence = Some(divergence);
                         best_cluster_id = Some(*cluster_id);
@@ -151,6 +152,20 @@ mod tests {
 ATGG\tATGC
 AAAA\tAAAA
 ",
+            str::from_utf8(stream.get_ref()).unwrap())
+    }
+
+    #[test]
+    fn test_bug1(){
+        let mut stream = Cursor::new(Vec::new());
+        cluster_by_fragment(
+            "test/data/cluster_bug1.fna",
+            2,
+            &mut stream);
+        assert_eq!(
+            "ATGCAAAAA\tATGCAAAAA\n\
+             ATAAAAAAA\tATGCAAAAA\n\
+             TTAAAAAAA\tTTAAAAAAA\n",
             str::from_utf8(stream.get_ref()).unwrap())
     }
 }

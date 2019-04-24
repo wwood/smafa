@@ -1,0 +1,6 @@
+>seq1
+ATGCAAAAA
+>seq2 diff 2 to seq1 and 1 to seq3
+ATAAAAAAA
+>seq3
+TTAAAAAAA
