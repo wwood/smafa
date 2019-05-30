@@ -49,7 +49,10 @@ fn main(){
                     query_fasta,
                     max_divergence,
                     &mut std::io::stdout(),
-                    smafa::DatabaseType::DNA);
+                    match m.is_present("amino-acid") {
+                        true => smafa::DatabaseType::Translated,
+                        false => smafa::DatabaseType::DNA
+                    });
             }
         },
         _ => {
@@ -90,6 +93,7 @@ fn build_cli() -> App<'static, 'static> {
                       -q, --quiet         'Unless there is an error, do not print logging information'";
     let cluster_args: &'static str = "<FASTA> 'Sequences to cluster'
                       -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'
+                       --amino-acid  'Sequences are amino acid [default: nucleotide]'
 
                       -v, --verbose       'Print extra debug logging information'
                       -q, --quiet         'Unless there is an error, do not print logging information'";
