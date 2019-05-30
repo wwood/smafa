@@ -28,7 +28,13 @@ fn main(){
             let db_fasta = m.value_of("DB_FASTA").unwrap();
             let db_root = m.value_of("DB").unwrap();
             set_log_level(m);
-            smafa::makedb(db_root, db_fasta, smafa::DatabaseType::DNA);
+            smafa::makedb(
+                db_root,
+                db_fasta,
+                match m.is_present("amino-acid") {
+                    true => smafa::DatabaseType::Translated,
+                    false => smafa::DatabaseType::DNA
+                });
         },
         Some("cluster") => {
             let m = matches.subcommand_matches("cluster").unwrap();
@@ -72,6 +78,7 @@ fn set_log_level(matches: &clap::ArgMatches) {
 fn build_cli() -> App<'static, 'static> {
     let makedb_args: &'static str = "<DB_FASTA>  'Subject sequences to search against'
                        <DB>        'Output DB filename root'
+                       --amino-acid  'Sequences are amino acid [default: nucleotide]'
 
                       -v, --verbose       'Print extra debug logging information'
                       -q, --quiet         'Unless there is an error, do not print logging information'";
