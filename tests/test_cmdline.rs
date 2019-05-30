@@ -3,8 +3,6 @@ extern crate tempfile;
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::Read;
     use assert_cli::Assert;
     extern crate tempfile;
 
@@ -81,7 +79,7 @@ mod tests {
     fn test_cluster_amino_acids() {
         let fasta = "tests/data/hello_world_amino_acids.fna";
         let mut res = vec!();
-        smafa::cluster(fasta, 2, &mut res, smafa::DatabaseType::Translated);
+        smafa::cluster(fasta, 2, &mut res, smafa::DatabaseType::Translated, 5);
         let expected = "C	0	2	*	*	*	*	*	1	*\n\
                         C	1	1	*	*	*	*	*	3	*\n\
                         H	0	14	85.7	*	*	*	14M	2	1\n";

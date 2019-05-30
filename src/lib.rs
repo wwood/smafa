@@ -267,7 +267,8 @@ pub fn cluster(
     fasta_file: &str,
     max_divergence: u32,
     print_stream: &mut std::io::Write,
-    db_type: DatabaseType) {
+    db_type: DatabaseType,
+    k: usize) {
     // For timing
     let mut now = Instant::now();
     let mut new_now;
@@ -279,7 +280,7 @@ pub fn cluster(
     let db = generate_unpacked_db(fasta_file, db_type);
     new_now = Instant::now(); debug!("index generation time {:?}", new_now.duration_since(now)); now = new_now;
 
-    let res = do_clustering(&db, &fasta_file, max_divergence);
+    let res = do_clustering(&db, &fasta_file, max_divergence, k);
 
     // print out the clusters
     new_now = Instant::now(); debug!("clustering search time {:?}", new_now.duration_since(now)); now = new_now;
@@ -301,7 +302,7 @@ struct ClusteringResults {
     sequence_names: Vec<Box<String>>
 }
 
-fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u32) -> ClusteringResults {
+fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u32, k: usize) -> ClusteringResults {
     let sa = &db.saveable_fm_index.suffix_array;
     let bwt = &db.saveable_fm_index.bwt;
     let less = &db.saveable_fm_index.less;
@@ -328,8 +329,8 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
         }
         sequence_names.push(Box::new(String::from(seq.id())));
         let mut printed_seqs: HashSet<usize> = HashSet::new();
-        for i in 0..((sequence_length-5) / 5) {
-            let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
+        for i in 0..(sequence_length-k) {
+            let intervals = fm.backward_search(pattern[i..(i+k)].iter());
             let some = intervals.occ(sa);
 
             // The text is of length 60, plus the sentinal (if sequence_length
@@ -339,7 +340,7 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
                 let sequence_index = pos / (sequence_length + 1);
                 if sequence_index <= query_sequence_index as usize {
                     let start = sequence_index * (sequence_length + 1);
-                    if pos-start == 5*i &&
+                    if pos-start == i &&
                         !printed_seqs.contains(&start) {
                             printed_seqs.insert(start);
                             let subject = &text[(start..(start+sequence_length))];
@@ -483,7 +484,7 @@ mod tests {
     fn test_cluster_hello_world() {
         let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 1, &mut res, DatabaseType::DNA);
+        cluster(fasta, 1, &mut res, DatabaseType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence1.uc").
             unwrap().read_to_string(&mut expected).unwrap();
@@ -494,7 +495,7 @@ mod tests {
     fn test_cluster_all_singletons() {
         let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 0, &mut res, DatabaseType::DNA);
+        cluster(fasta, 0, &mut res, DatabaseType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence0.uc").
             unwrap().read_to_string(&mut expected).unwrap();
@@ -505,7 +506,7 @@ mod tests {
     fn test_cluster_many_seqs() {
         let fasta = "tests/data/singlem_plot_test.fna";
         let mut res = vec!();
-        cluster(fasta, 5, &mut res, DatabaseType::DNA);
+        cluster(fasta, 5, &mut res, DatabaseType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         // expected string not manually verified except that the correct number
         // of outputs is observed.

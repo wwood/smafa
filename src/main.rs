@@ -46,6 +46,7 @@ fn main(){
                 smafa::fragment_clusterer::cluster_by_fragment(
                     query_fasta, max_divergence as u8, &mut std::io::stdout());
             } else {
+                let k = value_t!(m.value_of("kmer-length"), usize).unwrap_or(5);
                 smafa::cluster(
                     query_fasta,
                     max_divergence,
@@ -53,7 +54,9 @@ fn main(){
                     match m.is_present("amino-acid") {
                         true => smafa::DatabaseType::Translated,
                         false => smafa::DatabaseType::DNA
-                    });
+                    },
+                    k,
+                );
             }
         },
         _ => {
@@ -96,6 +99,7 @@ fn build_cli() -> App<'static, 'static> {
     let cluster_args: &'static str = "<FASTA> 'Sequences to cluster'
                       -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'
                        --amino-acid  'Sequences are amino acid [default: nucleotide]'
+                      -k, --kmer-length=[INTEGER]   'Length of kmer to query with [default 5]'
 
                       -v, --verbose       'Print extra debug logging information'
                       -q, --quiet         'Unless there is an error, do not print logging information'";
