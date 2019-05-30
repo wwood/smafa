@@ -21,6 +21,7 @@ snap = "^0.2.4"
 
 [dev-dependencies]
 tempfile = "^2.1.6"
+assert_cli = "0.6.*"
 
 [features]
 unstable = []

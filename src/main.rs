@@ -28,7 +28,7 @@ fn main(){
             let db_fasta = m.value_of("DB_FASTA").unwrap();
             let db_root = m.value_of("DB").unwrap();
             set_log_level(m);
-            smafa::makedb(db_root, db_fasta);
+            smafa::makedb(db_root, db_fasta, smafa::DatabaseType::DNA);
         },
         Some("cluster") => {
             let m = matches.subcommand_matches("cluster").unwrap();
@@ -39,7 +39,11 @@ fn main(){
                 smafa::fragment_clusterer::cluster_by_fragment(
                     query_fasta, max_divergence as u8, &mut std::io::stdout());
             } else {
-                smafa::cluster(query_fasta, max_divergence, &mut std::io::stdout());
+                smafa::cluster(
+                    query_fasta,
+                    max_divergence,
+                    &mut std::io::stdout(),
+                    smafa::DatabaseType::DNA);
             }
         },
         _ => {

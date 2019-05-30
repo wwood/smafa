@@ -14,7 +14,7 @@ extern crate snap;
 
 use std::str;
 
-use bio::alphabets::dna;
+use bio::alphabets::{dna, protein};
 use bio::data_structures::fmindex::*;
 use bio::data_structures::suffix_array::{suffix_array, RawSuffixArray};
 use bio::data_structures::bwt::*;
@@ -34,7 +34,8 @@ struct SaveableFMIndex {
     suffix_array: RawSuffixArray,
     bwt: BWT,
     less: Less,
-    occ: Occ
+    occ: Occ,
+    db_type: DatabaseType,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -48,7 +49,14 @@ struct UnpackedDB {
     text: Vec<u8>,
 }
 
-fn generate_unpacked_db(db_fasta: &str) -> UnpackedDB {
+#[derive(Serialize, Deserialize)]
+pub enum DatabaseType {
+    DNA, Translated
+}
+
+fn current_db_version() -> u8 { 2 }
+
+fn generate_unpacked_db(db_fasta: &str, db_type: DatabaseType) -> UnpackedDB {
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
     let mut sequence_length: usize = 0; // often 60
     let mut text = vec![];
@@ -77,7 +85,10 @@ fn generate_unpacked_db(db_fasta: &str) -> UnpackedDB {
     new_now = Instant::now();
     info!("Read in {} sequences in {} seconds.", i, new_now.duration_since(now).as_secs());
 
-    let alphabet = dna::n_alphabet();
+    let alphabet = match db_type {
+        DatabaseType::DNA => dna::n_alphabet(),
+        DatabaseType::Translated => protein::alphabet()
+    };
     let before_index_generation_time = Instant::now();
     now = new_now;
     let sa = suffix_array(&text);
@@ -95,7 +106,8 @@ fn generate_unpacked_db(db_fasta: &str) -> UnpackedDB {
         suffix_array: sa,
         bwt: bwt1,
         less: less,
-        occ: occ
+        occ: occ,
+        db_type: db_type,
     };
     let unpacked = UnpackedDB {
         saveable_fm_index: saveable_fm_index,
@@ -104,10 +116,10 @@ fn generate_unpacked_db(db_fasta: &str) -> UnpackedDB {
     return unpacked;
 }
 
-pub fn makedb(db_root: &str, db_fasta: &str){
-    let unpacked = generate_unpacked_db(db_fasta);
+pub fn makedb(db_root: &str, db_fasta: &str, db_type: DatabaseType){
+    let unpacked = generate_unpacked_db(db_fasta, db_type);
     let smafa_db = SmafaDB {
-        version: 1,
+        version: current_db_version(),
         fm_index: unpacked.saveable_fm_index
     };
     let filename = db_root;
@@ -137,7 +149,11 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
     debug!("Deserialising DB ..");
-    let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper).unwrap();
+    let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper).expect(
+        &format!(
+            "Failed to deserialize database, perhaps due to an incompatible \
+             database type? This code is expecting version {}",
+            current_db_version()));
     debug!("Finished deserialising DB.");
     let fm_saveable = smafa_db.fm_index;
 
@@ -245,7 +261,11 @@ struct BestClusterHit {
     divergence: u32,
     hit_sequence_index: u32
 }
-pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io::Write) {
+pub fn cluster(
+    fasta_file: &str,
+    max_divergence: u32,
+    print_stream: &mut std::io::Write,
+    db_type: DatabaseType) {
     // For timing
     let mut now = Instant::now();
     let mut new_now;
@@ -254,7 +274,7 @@ pub fn cluster(fasta_file: &str, max_divergence: u32, print_stream: &mut std::io
     // sequences that only hit themselves.
 
     // make a database out of the sequences
-    let db = generate_unpacked_db(fasta_file);
+    let db = generate_unpacked_db(fasta_file, db_type);
     new_now = Instant::now(); debug!("index generation time {:?}", new_now.duration_since(now)); now = new_now;
 
     let res = do_clustering(&db, &fasta_file, max_divergence);
@@ -440,46 +460,53 @@ mod tests {
     #[test]
     fn makedb_and_query100seqs() {
         let tf_db: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
-        makedb(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna");
+        makedb(
+            tf_db.path().to_str().unwrap(),
+            "tests/data/4.08.ribosomal_protein_L3_rplC.100random.fna",
+            DatabaseType::DNA);
         let mut res = vec!();
-        query(tf_db.path().to_str().unwrap(), "test/data/4.08.ribosomal_protein_L3_rplC.100random.fna", 5, &mut res);
+        query(
+            tf_db.path().to_str().unwrap(),
+            "tests/data/4.08.ribosomal_protein_L3_rplC.100random.fna",
+            5,
+            &mut res);
         let mut expected: String = "".to_lowercase();
-        File::open("test/data/4.08.ribosomal_protein_L3_rplC.100random.fnaVitself.expected").
+        File::open("tests/data/4.08.ribosomal_protein_L3_rplC.100random.fnaVitself.expected").
             unwrap().read_to_string(&mut expected).unwrap();
         assert_eq!(expected, String::from_utf8(res).unwrap());
     }
 
     #[test]
     fn test_cluster_hello_world() {
-        let fasta = "test/data/random2_plus_last_like_first.fna";
+        let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 1, &mut res);
+        cluster(fasta, 1, &mut res, DatabaseType::DNA);
         let mut expected: String = "".to_lowercase();
-        File::open("test/data/random2_plus_last_like_first.fna.cluster-divergence1.uc").
+        File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence1.uc").
             unwrap().read_to_string(&mut expected).unwrap();
         assert_eq!(expected, String::from_utf8(res).unwrap());
     }
 
     #[test]
     fn test_cluster_all_singletons() {
-        let fasta = "test/data/random2_plus_last_like_first.fna";
+        let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 0, &mut res);
+        cluster(fasta, 0, &mut res, DatabaseType::DNA);
         let mut expected: String = "".to_lowercase();
-        File::open("test/data/random2_plus_last_like_first.fna.cluster-divergence0.uc").
+        File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence0.uc").
             unwrap().read_to_string(&mut expected).unwrap();
         assert_eq!(expected, String::from_utf8(res).unwrap());
     }
 
     #[test]
     fn test_cluster_many_seqs() {
-        let fasta = "test/data/singlem_plot_test.fna";
+        let fasta = "tests/data/singlem_plot_test.fna";
         let mut res = vec!();
-        cluster(fasta, 5, &mut res);
+        cluster(fasta, 5, &mut res, DatabaseType::DNA);
         let mut expected: String = "".to_lowercase();
         // expected string not manually verified except that the correct number
         // of outputs is observed.
-        File::open("test/data/singlem_plot_test.fna.uc").
+        File::open("tests/data/singlem_plot_test.fna.uc").
             unwrap().read_to_string(&mut expected).unwrap();
         let mut expected_sorted: Vec<&str> = expected.split("\n").collect();
         let observed = String::from_utf8(res).unwrap();
@@ -495,7 +522,7 @@ mod benches {
 
     #[bench]
     fn bench_sra_euk_seqs_query(b: &mut test::Bencher) {
-        let fasta = "test/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
+        let fasta = "tests/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
         let db = generate_unpacked_db(fasta);
         b.iter(|| {
             let mut num_hits = 0;
@@ -514,7 +541,7 @@ mod benches {
 
     #[bench]
     fn bench_sra_euk_seqs_clustering(b: &mut test::Bencher) {
-        let fasta = "test/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
+        let fasta = "tests/data/sra.euks.4.11.ribosomal_protein_L10.head1000.fa";
         let db = generate_unpacked_db(fasta);
         b.iter(|| do_clustering(
             &db,

@@ -165,7 +165,7 @@ mod tests {
     fn test_simple(){
         let mut stream = Cursor::new(Vec::new());
         cluster_by_fragment(
-            "test/data/cluster_dummy1.fna",
+            "tests/data/cluster_dummy1.fna",
             1,
             &mut stream);
         assert_eq!(
@@ -180,7 +180,7 @@ AAAA\tAAAA
     fn test_bug1(){
         let mut stream = Cursor::new(Vec::new());
         cluster_by_fragment(
-            "test/data/cluster_bug1.fna",
+            "tests/data/cluster_bug1.fna",
             2,
             &mut stream);
         assert_eq!(
@@ -196,7 +196,7 @@ AAAA\tAAAA
         // sequences that are the same but are given different centroids.
         let mut stream = Cursor::new(Vec::new());
         cluster_by_fragment(
-            "test/data/cluster_best_hit_changes.fna",
+            "tests/data/cluster_best_hit_changes.fna",
             2,
             &mut stream);
         assert_eq!(
