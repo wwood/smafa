@@ -1,9 +1,9 @@
 extern crate smafa;
 
 extern crate log;
-use log::LogLevelFilter;
 extern crate env_logger;
-use env_logger::LogBuilder;
+use log::LevelFilter;
+use env_logger::Builder;
 
 extern crate clap;
 use clap::*;
@@ -50,19 +50,19 @@ fn main(){
 }
 
 fn set_log_level(matches: &clap::ArgMatches) {
-    let mut log_level = LogLevelFilter::Info;
+    let mut log_level = LevelFilter::Info;
     if matches.is_present("verbose") {
-        log_level = LogLevelFilter::Debug;
+        log_level = LevelFilter::Debug;
     }
     if matches.is_present("quiet") {
-        log_level = LogLevelFilter::Error;
+        log_level = LevelFilter::Error;
     }
-    let mut builder = LogBuilder::new();
-    builder.filter(None, log_level);
+    let mut builder = Builder::new();
+    builder.filter_level(log_level);
     if env::var("RUST_LOG").is_ok() {
-        builder.parse(&env::var("RUST_LOG").unwrap());
+        builder.parse_filters(&env::var("RUST_LOG").unwrap());
     }
-    builder.init().unwrap();
+    builder.try_init().unwrap();
 }
 
 fn build_cli() -> App<'static, 'static> {

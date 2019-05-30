@@ -115,7 +115,7 @@ pub fn makedb(db_root: &str, db_fasta: &str){
     let writer = BufWriter::new(f);
     let mut snapper = snap::Writer::new(writer);
     debug!("Writing {}", filename);
-    bincode::serialize_into(&mut snapper, &smafa_db, bincode::Infinite).unwrap();
+    bincode::serialize_into(&mut snapper, &smafa_db).unwrap();
     debug!("Finished writing.")
 }
 
@@ -137,7 +137,7 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
     debug!("Deserialising DB ..");
-    let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper, bincode::Infinite).unwrap();
+    let smafa_db: SmafaDB = bincode::deserialize_from(&mut unsnapper).unwrap();
     debug!("Finished deserialising DB.");
     let fm_saveable = smafa_db.fm_index;
 

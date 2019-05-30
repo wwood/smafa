@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std;
 
 use bio::io::fasta;
+use bio::io::fasta::FastaRead;
 
 pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
                            print_stream: &mut std::io::Write){
