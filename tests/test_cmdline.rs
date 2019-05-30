@@ -49,6 +49,35 @@ mod tests {
     }
 
     #[test]
+    fn test_protein_makedb_and_query_shorter(){
+        let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        let t = tf.path().to_str().unwrap();
+        Assert::main_binary()
+            .with_args(&[
+                "makedb",
+                "tests/data/four_amino_acids.faa",
+                t,
+                "--amino-acid"
+            ]).succeeds().unwrap();
+
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                t,
+                "tests/data/four_amino_acids.faa",
+                "-d",
+                "2",
+                "-k",
+                "2",
+            ]).succeeds()
+            .stdout().is("1	RTWC	RTKG	2	4\n\
+                          1	RTWC	RTWC	0	4\n\
+                          2	RTKG	RTKG	0	4\n\
+                          2	RTKG	RTWC	2	4\n\
+                          3	RAAA	RAAA	0	4\n").unwrap()
+    }
+
+    #[test]
     fn test_cluster_amino_acids() {
         let fasta = "tests/data/hello_world_amino_acids.fna";
         let mut res = vec!();

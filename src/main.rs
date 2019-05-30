@@ -21,7 +21,8 @@ fn main(){
             let query_fasta = m.value_of("QUERY_FASTA").unwrap();
             let max_divergence = value_t!(m.value_of("divergence"), u32).unwrap_or(5);
             set_log_level(m);
-            smafa::query(db_root, query_fasta, max_divergence, &mut std::io::stdout());
+            let k = value_t!(m.value_of("kmer-length"), usize).unwrap_or(5);
+            smafa::query(db_root, query_fasta, max_divergence, &mut std::io::stdout(), k);
         },
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
@@ -88,6 +89,7 @@ fn build_cli() -> App<'static, 'static> {
     let query_args: &'static str = "<DB>           'Output from makedb'
                       <QUERY_FASTA> 'Query sequences to search with'
                       -d, --divergence=[INTEGER] 'Maximum number of mismatches in reported hits [default: 5]'
+                      -k, --kmer-length=[INTEGER]   'Length of kmer to query with [default 5]'
 
                       -v, --verbose       'Print extra debug logging information'
                       -q, --quiet         'Unless there is an error, do not print logging information'";

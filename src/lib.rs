@@ -145,7 +145,7 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 
 
 pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
-             print_stream: &mut std::io::Write){
+             print_stream: &mut std::io::Write, k: usize){
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
     debug!("Deserialising DB ..");
@@ -180,7 +180,7 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
         };
         query_with_everything(
             query_fasta, max_divergence, query_printer,
-            &sa, &bwt, &less, &occ, &text);
+            &sa, &bwt, &less, &occ, &text, k);
     }
     info!("Printed {} hit(s).", num_hits);
 }
@@ -203,7 +203,8 @@ fn query_with_everything<T>(
     bwt: &BWT,
     less: &Less,
     occ: &Occ,
-    text: &Vec<u8>)
+    text: &Vec<u8>,
+    k: usize)
     where T: FnMut(Hit) {
 
     let fm = FMIndex::new(bwt, less, occ);
@@ -220,8 +221,9 @@ fn query_with_everything<T>(
             process::exit(3);
         }
         let mut printed_seqs: HashSet<usize> = HashSet::new();
-        for i in 0..((sequence_length-5) / 5) {
-            let intervals = fm.backward_search(pattern[(5*i)..(5*i+5)].iter());
+        for i in 0..(sequence_length-k) {
+            debug!("Trying position {}", i);
+            let intervals = fm.backward_search(pattern[i..(i+k)].iter());
             let some = intervals.occ(sa);
 
             // The text is of length 60, plus the sentinal (if sequence_length
@@ -230,7 +232,7 @@ fn query_with_everything<T>(
             for pos in some {
                 let sequence_index = pos / (sequence_length + 1);
                 let start = sequence_index * (sequence_length + 1);
-                if pos-start == 5*i && !printed_seqs.contains(&start) {
+                if pos-start == i && !printed_seqs.contains(&start) {
                     printed_seqs.insert(start);
                     let subject = &text[(start..(start+sequence_length))];
                     let mut divergence = 0;
@@ -469,7 +471,8 @@ mod tests {
             tf_db.path().to_str().unwrap(),
             "tests/data/4.08.ribosomal_protein_L3_rplC.100random.fna",
             5,
-            &mut res);
+            &mut res,
+            5);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/4.08.ribosomal_protein_L3_rplC.100random.fnaVitself.expected").
             unwrap().read_to_string(&mut expected).unwrap();
