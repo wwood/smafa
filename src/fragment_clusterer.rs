@@ -14,7 +14,6 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
     let mut record = fasta::Record::new();
     let mut reader = fasta::Reader::new(
         File::open(input_fasta_path).expect("Failed to open query fasta"));
-    let mut fragment_size: u8 = 0;
     let mut num_fragments: u8 = 0;
     let mut first = true;
     let mut sequence_length: u32 = 0;
@@ -25,6 +24,7 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
     let mut fragment_hash: Vec<HashMap<Vec<u8>, Vec<u32>>> = vec!();
     let mut next_cluster_id: u32 = 0;
     let mut seen_sequences: HashSet<Vec<u8>> = HashSet::new();
+    let mut fragment_lengths: Vec<usize> = vec!();
 
     while reader.read(&mut record).is_ok() {
         let pattern: Vec<u8> = record.seq().to_vec();
@@ -39,24 +39,36 @@ pub fn cluster_by_fragment(input_fasta_path: &str, max_divergence: u8,
             sequence_length = pattern.len() as u32;
             // determine the size of fragments - one more than the max_divergence
             num_fragments = max_divergence + 1;
-            fragment_size = (sequence_length / num_fragments as u32) as u8;
-            debug!("Using num_fragments {} and fragment size {}", num_fragments, fragment_size);
-            // croak if the sequence length is not divisible by the fragment size (could be fixed in future?)
-            if (fragment_size * num_fragments) as u32 != sequence_length {
-                panic!("sequence length must be divisible by (max divergence + 1)")
+            let fragment_size_floor = (sequence_length / num_fragments as u32) as u8;
+            let mut num_extra_size = sequence_length - (fragment_size_floor * num_fragments) as u32;
+            debug!("Divvying into {} fragments of size floor {}, and {} extras",
+                   num_fragments, fragment_size_floor, num_extra_size);
+            for _ in 0..num_fragments {
+                if num_extra_size > 0 {
+                    fragment_lengths.push((fragment_size_floor+1) as usize);
+                    num_extra_size -= 1;
+                } else {
+                    fragment_lengths.push(fragment_size_floor as usize);
+                }
             }
+            debug!("Using fragment lengths {:?}", fragment_lengths);
             // setup fragment arrays
             for _ in 0..num_fragments {
                 fragment_hash.push(HashMap::new())
             }
         }
 
+        // Need to iterate over fragments from the current sequence
         let mut potential_hits: HashSet<u32> = HashSet::new();
         let mut current_fragments: Vec<Vec<u8>> = Vec::with_capacity(num_fragments as usize);
-        for i in 0..num_fragments {
-            let subseq = pattern[(i*fragment_size) as usize .. ((i+1)*fragment_size) as usize]
-                .iter().map(|h| *h).collect();
-            current_fragments.push(subseq);
+        {
+            let mut fragment_counter: usize = 0;
+            for l in &fragment_lengths {
+                current_fragments.push(
+                    pattern[fragment_counter .. (fragment_counter+l)]
+                        .iter().map(|h| *h).collect());
+                    fragment_counter += l;
+            }
         }
         debug!("current fragments: {:?}", current_fragments);
 
