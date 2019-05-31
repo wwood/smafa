@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "unstable", feature(test))]
 
 pub mod fragment_clusterer;
+pub mod translation;
 
 extern crate bio;
 #[macro_use]
@@ -54,9 +55,13 @@ pub enum DatabaseType {
     DNA, Translated
 }
 
+pub enum SequenceInputType {
+    DNA, Translated, Translate
+}
+
 fn current_db_version() -> u8 { 2 }
 
-fn generate_unpacked_db(db_fasta: &str, db_type: DatabaseType) -> UnpackedDB {
+fn generate_unpacked_db(db_fasta: &str, input_sequence_type: SequenceInputType) -> UnpackedDB {
     let reader = fasta::Reader::new(File::open(db_fasta).unwrap());
     let mut sequence_length: usize = 0; // often 60
     let mut text = vec![];
@@ -67,14 +72,22 @@ fn generate_unpacked_db(db_fasta: &str, db_type: DatabaseType) -> UnpackedDB {
     let mut i: u64 = 0;
     for record in reader.records() {
         let record = record.unwrap();
+        let translated_sequence;
+        let seq = match input_sequence_type {
+            SequenceInputType::DNA | SequenceInputType::Translated => record.seq(),
+            SequenceInputType::Translate => {
+                translated_sequence = translation::translate_codons(record.seq());
+                &translated_sequence
+            }
+        };
         if sequence_length == 0 {
-            sequence_length = record.seq().len();
+            sequence_length = seq.len();
             debug!("Found first sequence length {}", sequence_length)
-        } else if record.seq().len() != sequence_length {
+        } else if seq.len() != sequence_length {
             eprintln!("Found sequences of different lengths, all sequences must be of the same sequence.");
             process::exit(1);
         }
-        text.extend(record.seq().iter().cloned());
+        text.extend(seq.iter().cloned());
         text.extend_from_slice(b"$");
         i+=1;
     }
@@ -85,10 +98,17 @@ fn generate_unpacked_db(db_fasta: &str, db_type: DatabaseType) -> UnpackedDB {
     new_now = Instant::now();
     info!("Read in {} sequences in {} seconds.", i, new_now.duration_since(now).as_secs());
 
+    let db_type = match input_sequence_type {
+        SequenceInputType::DNA => DatabaseType::DNA,
+        SequenceInputType::Translate => DatabaseType::Translated,
+        SequenceInputType::Translated => DatabaseType::Translated,
+    };
+
     let alphabet = match db_type {
         DatabaseType::DNA => dna::n_alphabet(),
         DatabaseType::Translated => protein::alphabet()
     };
+
     let before_index_generation_time = Instant::now();
     now = new_now;
     let sa = suffix_array(&text);
@@ -116,8 +136,8 @@ fn generate_unpacked_db(db_fasta: &str, db_type: DatabaseType) -> UnpackedDB {
     return unpacked;
 }
 
-pub fn makedb(db_root: &str, db_fasta: &str, db_type: DatabaseType){
-    let unpacked = generate_unpacked_db(db_fasta, db_type);
+pub fn makedb(db_root: &str, db_fasta: &str, input_type: SequenceInputType){
+    let unpacked = generate_unpacked_db(db_fasta, input_type);
     let smafa_db = SmafaDB {
         version: current_db_version(),
         fm_index: unpacked.saveable_fm_index
@@ -145,7 +165,8 @@ fn determine_sequence_length(text: &[u8]) -> usize {
 
 
 pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
-             print_stream: &mut std::io::Write, k: usize){
+             print_stream: &mut std::io::Write, k: usize,
+             sequence_input_type: SequenceInputType){
     let f = File::open(db_root).expect("file not found");
     let mut unsnapper = snap::Reader::new(f);
     debug!("Deserialising DB ..");
@@ -180,7 +201,7 @@ pub fn query(db_root: &str, query_fasta: &str, max_divergence: u32,
         };
         query_with_everything(
             query_fasta, max_divergence, query_printer,
-            &sa, &bwt, &less, &occ, &text, k);
+            &sa, &bwt, &less, &occ, &text, k, sequence_input_type);
     }
     info!("Printed {} hit(s).", num_hits);
 }
@@ -204,26 +225,42 @@ fn query_with_everything<T>(
     less: &Less,
     occ: &Occ,
     text: &Vec<u8>,
-    k: usize)
+    k: usize,
+    sequence_input_type: SequenceInputType)
     where T: FnMut(Hit) {
 
     let fm = FMIndex::new(bwt, less, occ);
 
     let sequence_length = determine_sequence_length(text);
     debug!("Found sequence length {}", sequence_length);
+    let k2 = if k > sequence_length {
+        let kay = sequence_length;
+        warn!("Specified kmer {} is greater than the sequence length, changing it to {}",
+              k, sequence_length);
+        kay
+    } else { k };
 
     let reader = fasta::Reader::new(File::open(query_fasta).unwrap());
     for record in reader.records() {
+        let translated_sequence;
         let seq = record.unwrap();
-        let pattern = seq.seq();
+        let pattern = match sequence_input_type {
+            SequenceInputType::DNA | SequenceInputType::Translated => seq.seq(),
+            SequenceInputType::Translate => {
+                translated_sequence = translation::translate_codons(seq.seq());
+                &translated_sequence
+            }
+        };
+        debug!("Querying with sequence {}", str::from_utf8(pattern).unwrap());
         if pattern.len() != sequence_length {
-            eprintln!("Sequence '{}' is not the same length as sequences in the database.", seq.id());
-            process::exit(3);
+            panic!("Query sequence '{}' has length {}, which is not the same \
+                    length as sequences in the database {}.",
+                   seq.id(), pattern.len(), sequence_length);
         }
         let mut printed_seqs: HashSet<usize> = HashSet::new();
-        for i in 0..(sequence_length-k) {
+        for i in 0..(sequence_length-k2+1) {
             debug!("Trying position {}", i);
-            let intervals = fm.backward_search(pattern[i..(i+k)].iter());
+            let intervals = fm.backward_search(pattern[i..(i+k2)].iter());
             let some = intervals.occ(sa);
 
             // The text is of length 60, plus the sentinal (if sequence_length
@@ -267,7 +304,7 @@ pub fn cluster(
     fasta_file: &str,
     max_divergence: u32,
     print_stream: &mut std::io::Write,
-    db_type: DatabaseType,
+    input_sequence_type: SequenceInputType,
     k: usize) {
     // For timing
     let mut now = Instant::now();
@@ -277,7 +314,7 @@ pub fn cluster(
     // sequences that only hit themselves.
 
     // make a database out of the sequences
-    let db = generate_unpacked_db(fasta_file, db_type);
+    let db = generate_unpacked_db(fasta_file, input_sequence_type);
     new_now = Instant::now(); debug!("index generation time {:?}", new_now.duration_since(now)); now = new_now;
 
     let res = do_clustering(&db, &fasta_file, max_divergence, k);
@@ -329,7 +366,7 @@ fn do_clustering<'a>(db: &'a UnpackedDB, fasta_file: &'a str, max_divergence: u3
         }
         sequence_names.push(Box::new(String::from(seq.id())));
         let mut printed_seqs: HashSet<usize> = HashSet::new();
-        for i in 0..(sequence_length-k) {
+        for i in 0..(sequence_length-k+1) {
             let intervals = fm.backward_search(pattern[i..(i+k)].iter());
             let some = intervals.occ(sa);
 
@@ -466,14 +503,15 @@ mod tests {
         makedb(
             tf_db.path().to_str().unwrap(),
             "tests/data/4.08.ribosomal_protein_L3_rplC.100random.fna",
-            DatabaseType::DNA);
+            SequenceInputType::DNA);
         let mut res = vec!();
         query(
             tf_db.path().to_str().unwrap(),
             "tests/data/4.08.ribosomal_protein_L3_rplC.100random.fna",
             5,
             &mut res,
-            5);
+            5,
+            SequenceInputType::DNA);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/4.08.ribosomal_protein_L3_rplC.100random.fnaVitself.expected").
             unwrap().read_to_string(&mut expected).unwrap();
@@ -484,7 +522,7 @@ mod tests {
     fn test_cluster_hello_world() {
         let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 1, &mut res, DatabaseType::DNA, 5);
+        cluster(fasta, 1, &mut res, SequenceInputType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence1.uc").
             unwrap().read_to_string(&mut expected).unwrap();
@@ -495,7 +533,7 @@ mod tests {
     fn test_cluster_all_singletons() {
         let fasta = "tests/data/random2_plus_last_like_first.fna";
         let mut res = vec!();
-        cluster(fasta, 0, &mut res, DatabaseType::DNA, 5);
+        cluster(fasta, 0, &mut res, SequenceInputType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         File::open("tests/data/random2_plus_last_like_first.fna.cluster-divergence0.uc").
             unwrap().read_to_string(&mut expected).unwrap();
@@ -506,7 +544,7 @@ mod tests {
     fn test_cluster_many_seqs() {
         let fasta = "tests/data/singlem_plot_test.fna";
         let mut res = vec!();
-        cluster(fasta, 5, &mut res, DatabaseType::DNA, 5);
+        cluster(fasta, 5, &mut res, SequenceInputType::DNA, 5);
         let mut expected: String = "".to_lowercase();
         // expected string not manually verified except that the correct number
         // of outputs is observed.

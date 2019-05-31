@@ -22,7 +22,19 @@ fn main(){
             let max_divergence = value_t!(m.value_of("divergence"), u32).unwrap_or(5);
             set_log_level(m);
             let k = value_t!(m.value_of("kmer-length"), usize).unwrap_or(5);
-            smafa::query(db_root, query_fasta, max_divergence, &mut std::io::stdout(), k);
+            smafa::query(
+                db_root,
+                query_fasta,
+                max_divergence,
+                &mut std::io::stdout(),
+                k,
+                match m.is_present("amino-acid") {
+                    true => smafa::SequenceInputType::Translated,
+                    false => match m.is_present("translate") {
+                        true => smafa::SequenceInputType::Translate,
+                        false => smafa::SequenceInputType::DNA
+                    }
+                });
         },
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
@@ -33,8 +45,11 @@ fn main(){
                 db_root,
                 db_fasta,
                 match m.is_present("amino-acid") {
-                    true => smafa::DatabaseType::Translated,
-                    false => smafa::DatabaseType::DNA
+                    true => smafa::SequenceInputType::Translated,
+                    false => match m.is_present("translate") {
+                        true => smafa::SequenceInputType::Translate,
+                        false => smafa::SequenceInputType::DNA
+                    }
                 });
         },
         Some("cluster") => {
@@ -52,8 +67,11 @@ fn main(){
                     max_divergence,
                     &mut std::io::stdout(),
                     match m.is_present("amino-acid") {
-                        true => smafa::DatabaseType::Translated,
-                        false => smafa::DatabaseType::DNA
+                        true => smafa::SequenceInputType::Translated,
+                        false => match m.is_present("translate") {
+                            true => smafa::SequenceInputType::Translate,
+                            false => smafa::SequenceInputType::DNA
+                        }
                     },
                     k,
                 );
@@ -113,11 +131,19 @@ fn build_cli() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("makedb")
                 .about("Generate a searchable database")
-                .args_from_usage(&makedb_args))
+                .args_from_usage(&makedb_args)
+                .arg(Arg::with_name("translate")
+                     .long("translate")
+                     .help("Translate input before generating DB")
+                     .conflicts_with("amino-acid")))
         .subcommand(
             SubCommand::with_name("query")
                 .about("Search a database")
-                .args_from_usage(&query_args))
+                .args_from_usage(&query_args)
+                .arg(Arg::with_name("translate")
+                     .long("translate")
+                     .help("Translate input before generating DB")
+                     .conflicts_with("amino-acid")))
         .subcommand(
             SubCommand::with_name("cluster")
                 .about("Cluster sequences greedily, preferring sequences towards front of file")

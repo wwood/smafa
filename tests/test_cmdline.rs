@@ -76,10 +76,39 @@ mod tests {
     }
 
     #[test]
+    fn test_translated_makedb_and_query_shorter(){
+        let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        let t = tf.path().to_str().unwrap();
+        Assert::main_binary()
+            .with_args(&[
+                "makedb",
+                "tests/data/to_translate.fna",
+                t,
+                "--translate"
+            ]).succeeds().unwrap();
+
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                t,
+                "tests/data/to_translate.fna",
+                "--translate",
+                "-d",
+                "0",
+                "-k",
+                "2",
+            ]).succeeds()
+            .stdout().is("1	NCE	NCE	0	3\n\
+                          1	NCE	NCE	0	3\n\
+                          2	NCE	NCE	0	3\n\
+                          2	NCE	NCE	0	3\n").unwrap()
+    }
+
+    #[test]
     fn test_cluster_amino_acids() {
         let fasta = "tests/data/hello_world_amino_acids.fna";
         let mut res = vec!();
-        smafa::cluster(fasta, 2, &mut res, smafa::DatabaseType::Translated, 5);
+        smafa::cluster(fasta, 2, &mut res, smafa::SequenceInputType::Translated, 5);
         let expected = "C	0	2	*	*	*	*	*	1	*\n\
                         C	1	1	*	*	*	*	*	3	*\n\
                         H	0	14	85.7	*	*	*	14M	2	1\n";
