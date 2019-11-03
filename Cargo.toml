@@ -12,7 +12,7 @@ authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
 [dependencies]
 bio = "^0.29.*"
 log = "^0.4.*"
-env_logger = "^0.6.*"
+env_logger = "^0.7.*"
 clap = "^2.32.0"
 serde = "^1.0.73"
 bincode = "^1.2.*"
