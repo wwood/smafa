@@ -1,6 +1,7 @@
 use std::{io::BufRead, fs::File, error::Error};
 use serde::{Serialize, Deserialize};
 use std::time::{Instant};
+use std::io::Write;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct WindowSet {
@@ -54,8 +55,10 @@ fn encode() -> Result<(), Box<dyn Error>> {
         windows: encoded };
 
     // Encode
-    let ferris_file = File::create("windows.cbor")?;
-    serde_cbor::to_writer(ferris_file, &windows)?;
+    let mut ferris_file = File::create("windows.cbor")?;
+    // open binary file
+    ferris_file.write(&bendy::serde::to_bytes(&windows).unwrap())?;
+    // serde_cbor::to_writer(ferris_file, &windows)?;
     return Ok(());
 }
 
@@ -126,23 +129,23 @@ fn query(filename: &str) -> Result<(), Box<dyn Error>> {
     let min_distance = distances.iter().min().unwrap();
     eprintln!("Found minimum in {}ms", start.elapsed().as_millis()); start = Instant::now();
 
-    // Print the windows with the minimum distance.
-    for (i, distance) in distances.iter().enumerate() {
-        if distance == min_distance {
-            let mut s = String::new();
-            for j in 0..windows.windows[i].len() / 5 {
-                let slice = &windows.windows[i][j*5..(j+1)*5];
-                s.push(match slice {
-                    [true, false, false, false, false] => 'A',
-                    [false, true, false, false, false] => 'C',
-                    [false, false, true, false, false] => 'G',
-                    [false, false, false, true, false] => 'T',
-                    _ => 'x'
-                });
-            }
-            println!("{} {} {}", min_distance, i, s);
-        }
-    }
-    eprintln!("Printed in {}ms", start.elapsed().as_millis());
+    // // Print the windows with the minimum distance.
+    // for (i, distance) in distances.iter().enumerate() {
+    //     if distance == min_distance {
+    //         let mut s = String::new();
+    //         for j in 0..windows.windows[i].len() / 5 {
+    //             let slice = &windows.windows[i][j*5..(j+1)*5];
+    //             s.push(match slice {
+    //                 [true, false, false, false, false] => 'A',
+    //                 [false, true, false, false, false] => 'C',
+    //                 [false, false, true, false, false] => 'G',
+    //                 [false, false, false, true, false] => 'T',
+    //                 _ => 'x'
+    //             });
+    //         }
+    //         println!("{} {} {}", min_distance, i, s);
+    //     }
+    // }
+    // eprintln!("Printed in {}ms", start.elapsed().as_millis());
     return Ok(());
 }
