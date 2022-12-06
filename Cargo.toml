@@ -1,27 +1,10 @@
 [package]
-name = "smafa"
-version = "0.5.0"
-license = "GPL-3.0"
-description = "Biological sequence aligner for aligned sequences."
-homepage = "https://github.com/wwood/smafa"
-repository = "https://github.com/wwood/smafa"
-documentation = "https://github.com/wwood/smafa"
-readme = "README.md"
-authors = ["Ben Woodcroft <donttrustben@gmail.com>"]
+name = "smafa_naive"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bio = "^0.29.*"
-log = "^0.4.*"
-env_logger = "^0.7.*"
-clap = "^2.32.0"
-serde = "^1.0.73"
-bincode = "^1.2.*"
-serde_derive = "^1.0.73"
-snap = "^0.2.4"
-
-[dev-dependencies]
-tempfile = "^3.1.0"
-assert_cli = "0.6.*"
-
-[features]
-unstable = []
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.11"
