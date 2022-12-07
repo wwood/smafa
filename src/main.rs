@@ -14,9 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if args.len() == 1 {
         return encode();
     } else if args.len() == 2 {
-        if args[1] == "decode" {
-            return decode(&"windows.cbor");
-        } else if args[1] == "query" {
+        if args[1] == "query" {
             return query(&"windows.cbor");
         } else if args[1] == "encode" {
             return encode();
@@ -56,34 +54,8 @@ fn encode() -> Result<(), Box<dyn Error>> {
 
     // Encode
     let mut ferris_file = File::create("windows.cbor")?;
-    // open binary file
     ferris_file.write(&postcard::to_allocvec(&windows).unwrap())?;
-    // serde_cbor::to_writer(ferris_file, &windows)?;
     return Ok(());
-}
-
-fn decode(filename: &str) -> Result<(), Box<dyn Error>> {
-    panic!();
-    // // Decode
-    // let ferris_file = File::open(filename)?;
-    // let windows: WindowSet = postcard::from_bytes(ferris_file.read(buf).unwrap())?;
-
-    // // Iterate over windows, decoding them into a string.
-    // for window in windows.windows {
-    //     let mut s = String::new();
-    //     for i in 0..window.len() / 5 {
-    //         let slice = &window[i*5..(i+1)*5];
-    //         s.push(match slice {
-    //             [true, false, false, false, false] => 'A',
-    //             [false, true, false, false, false] => 'C',
-    //             [false, false, true, false, false] => 'G',
-    //             [false, false, false, true, false] => 'T',
-    //             _ => 'x'
-    //         });
-    //     }
-    //     println!("{}", s);
-    // }
-    // return Ok(());
 }
 
 fn query(filename: &str) -> Result<(), Box<dyn Error>> {
