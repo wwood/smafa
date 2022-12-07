@@ -1,7 +1,7 @@
 use std::{io::BufRead, fs::File, error::Error};
 use serde::{Serialize, Deserialize};
 use std::time::{Instant};
-use std::io::Write;
+use std::io::{Write, Read};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct WindowSet {
@@ -57,39 +57,42 @@ fn encode() -> Result<(), Box<dyn Error>> {
     // Encode
     let mut ferris_file = File::create("windows.cbor")?;
     // open binary file
-    ferris_file.write(&bendy::serde::to_bytes(&windows).unwrap())?;
+    ferris_file.write(&postcard::to_allocvec(&windows).unwrap())?;
     // serde_cbor::to_writer(ferris_file, &windows)?;
     return Ok(());
 }
 
 fn decode(filename: &str) -> Result<(), Box<dyn Error>> {
-    // Decode
-    let ferris_file = File::open(filename)?;
-    let windows: WindowSet = serde_cbor::from_reader(ferris_file)?;
+    panic!();
+    // // Decode
+    // let ferris_file = File::open(filename)?;
+    // let windows: WindowSet = postcard::from_bytes(ferris_file.read(buf).unwrap())?;
 
-    // Iterate over windows, decoding them into a string.
-    for window in windows.windows {
-        let mut s = String::new();
-        for i in 0..window.len() / 5 {
-            let slice = &window[i*5..(i+1)*5];
-            s.push(match slice {
-                [true, false, false, false, false] => 'A',
-                [false, true, false, false, false] => 'C',
-                [false, false, true, false, false] => 'G',
-                [false, false, false, true, false] => 'T',
-                _ => 'x'
-            });
-        }
-        println!("{}", s);
-    }
-    return Ok(());
+    // // Iterate over windows, decoding them into a string.
+    // for window in windows.windows {
+    //     let mut s = String::new();
+    //     for i in 0..window.len() / 5 {
+    //         let slice = &window[i*5..(i+1)*5];
+    //         s.push(match slice {
+    //             [true, false, false, false, false] => 'A',
+    //             [false, true, false, false, false] => 'C',
+    //             [false, false, true, false, false] => 'G',
+    //             [false, false, false, true, false] => 'T',
+    //             _ => 'x'
+    //         });
+    //     }
+    //     println!("{}", s);
+    // }
+    // return Ok(());
 }
 
 fn query(filename: &str) -> Result<(), Box<dyn Error>> {
     // Decode
     let mut start = Instant::now();
-    let ferris_file = File::open(filename)?;
-    let windows: WindowSet = serde_cbor::from_reader(ferris_file)?;
+    let mut ferris_file = File::open(filename)?;
+    let mut buffer = Vec::new();
+    ferris_file.read_to_end(&mut buffer)?;
+    let windows: WindowSet = postcard::from_bytes(&buffer)?;
     eprintln!("Decoded in {}ms", start.elapsed().as_millis()); start = Instant::now();
 
     // encode a line from stdin as a vector of bools
