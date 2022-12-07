@@ -132,23 +132,23 @@ fn query(filename: &str) -> Result<(), Box<dyn Error>> {
     let min_distance = distances.iter().min().unwrap();
     eprintln!("Found minimum in {}ms", start.elapsed().as_millis()); start = Instant::now();
 
-    // // Print the windows with the minimum distance.
-    // for (i, distance) in distances.iter().enumerate() {
-    //     if distance == min_distance {
-    //         let mut s = String::new();
-    //         for j in 0..windows.windows[i].len() / 5 {
-    //             let slice = &windows.windows[i][j*5..(j+1)*5];
-    //             s.push(match slice {
-    //                 [true, false, false, false, false] => 'A',
-    //                 [false, true, false, false, false] => 'C',
-    //                 [false, false, true, false, false] => 'G',
-    //                 [false, false, false, true, false] => 'T',
-    //                 _ => 'x'
-    //             });
-    //         }
-    //         println!("{} {} {}", min_distance, i, s);
-    //     }
-    // }
-    // eprintln!("Printed in {}ms", start.elapsed().as_millis());
+    // Print the windows with the minimum distance.
+    for (i, distance) in distances.iter().enumerate() {
+        if distance == min_distance {
+            let mut s = String::new();
+            for j in 0..windows.windows[i].len() / 5 {
+                let slice = &windows.windows[i][j*5..(j+1)*5];
+                s.push(match slice {
+                    [true, false, false, false, false] => 'A',
+                    [false, true, false, false, false] => 'C',
+                    [false, false, true, false, false] => 'G',
+                    [false, false, false, true, false] => 'T',
+                    _ => 'x'
+                });
+            }
+            println!("{} {} {}", i, distance, s);
+        }
+    }
+    eprintln!("Printed in {}ms", start.elapsed().as_millis());
     return Ok(());
 }
