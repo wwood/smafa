@@ -14,12 +14,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match matches.subcommand_name() {
         Some("query") => {
             let m = matches.subcommand_matches("query").unwrap();
+            set_log_level(m, true);
             let db_root = m.get_one::<String>("database").unwrap();
             let query_fasta = m.get_one::<String>("query").unwrap();
             return smafa::query(db_root, query_fasta);
         }
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
+            set_log_level(m, true);
             let subject_fasta = m.get_one::<String>("input").unwrap();
             let database = m.get_one::<String>("database").unwrap();
             return smafa::makedb(subject_fasta, database);
@@ -38,9 +40,7 @@ fn set_log_level(matches: &clap::ArgMatches, is_last: bool) {
 
 fn build_cli() -> Command {
     return command!()
-        // .version(crate_version!())
         .author(crate::AUTHOR_AND_EMAIL)
-        // .about("Read aligner for small pre-aligned sequences")
         .arg(arg!(-v --verbose "Print extra debug logging information"))
         .arg(arg!(-q --quiet "Unless there is an error, do not print logging information"))
         .subcommand(add_clap_verbosity_flags(
