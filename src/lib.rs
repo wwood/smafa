@@ -22,7 +22,7 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
     // Open the query file as a fasta file.
     debug!("Opening subject fasta file: {}", subject_fasta);
     let mut subject_reader =
-        parse_fastx_file(&subject_fasta).expect("valid path/file of subject fasta");
+        parse_fastx_file(subject_fasta).expect("valid path/file of subject fasta");
 
     let mut encoded = Vec::new();
     info!("Encoding subject sequences ..");
@@ -31,8 +31,7 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
         let encoded1 = record
             .seq()
             .iter()
-            .map(|c| encode_single(*c))
-            .flatten()
+            .flat_map(|c| encode_single(*c))
             .collect::<Vec<_>>();
         encoded.push(encoded1);
     }
@@ -49,9 +48,9 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
 
     // Encode
     let mut ferris_file = File::create(db_path)?;
-    ferris_file.write(&postcard::to_allocvec(&windows).unwrap())?;
+    ferris_file.write_all(&postcard::to_allocvec(&windows).unwrap())?;
     info!("DB file written");
-    return Ok(());
+    Ok(())
 }
 
 // inline this function, performance affects untested, guessing it's better
@@ -79,7 +78,7 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
     let windows: WindowSet = postcard::from_bytes(&buffer)?;
 
     // Open the query file as a fasta file.
-    let mut query_reader = parse_fastx_file(&query_fasta).expect("valid path/file of query fasta");
+    let mut query_reader = parse_fastx_file(query_fasta).expect("valid path/file of query fasta");
 
     // Iterate over the query file.
     info!("Querying ..");
@@ -90,8 +89,7 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
             .expect("Failed to parse query sequence")
             .seq()
             .iter()
-            .map(|c| encode_single(*c))
-            .flatten()
+            .flat_map(|c| encode_single(*c))
             .collect::<Vec<_>>();
 
         // Get the minimum distance between the query and each window using xor.
@@ -135,5 +133,5 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
         "Querying complete, took {} seconds",
         start.elapsed().as_secs()
     );
-    return Ok(());
+    Ok(())
 }

@@ -17,19 +17,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             set_log_level(m, true);
             let db_root = m.get_one::<String>("database").unwrap();
             let query_fasta = m.get_one::<String>("query").unwrap();
-            return smafa::query(db_root, query_fasta);
+            smafa::query(db_root, query_fasta)
         }
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
             set_log_level(m, true);
             let subject_fasta = m.get_one::<String>("input").unwrap();
             let database = m.get_one::<String>("database").unwrap();
-            return smafa::makedb(subject_fasta, database);
+            smafa::makedb(subject_fasta, database)
         }
         _ => {
             app.print_help().unwrap();
             println!();
-            return Ok(());
+            Ok(())
         }
     }
 }
@@ -39,7 +39,7 @@ fn set_log_level(matches: &clap::ArgMatches, is_last: bool) {
 }
 
 fn build_cli() -> Command {
-    return command!()
+    command!()
         .author(crate::AUTHOR_AND_EMAIL)
         .arg(arg!(-v --verbose "Print extra debug logging information"))
         .arg(arg!(-q --quiet "Unless there is an error, do not print logging information"))
@@ -56,5 +56,5 @@ fn build_cli() -> Command {
                     .arg(arg!(-d --database <FILE> "Output from makedb")),
             )
             .arg(arg!(-q --query <FILE> "Query sequences to search with")),
-        );
+        )
 }
