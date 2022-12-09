@@ -28,6 +28,7 @@ needletail = "0.4.*"
 [dev-dependencies]
 tempfile = "^3.1.0"
 assert_cli = "0.6.*"
+cargo-husky = { version="1", default-features = false, features=["precommit-hook", "run-cargo-fmt"] }
 
 [profile.release]
 strip = true
