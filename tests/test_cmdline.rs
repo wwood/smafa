@@ -7,29 +7,21 @@ mod tests {
     extern crate tempfile;
 
     #[test]
-    fn test_dna_makedb_and_query(){
+    fn test_dna_makedb_and_query() {
         let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
         let t = tf.path().to_str().unwrap();
         Assert::main_binary()
-            .with_args(&[
-                "makedb",
-                "-i",
-                "tests/data/random_3_2.fna",
-                "-d",
-                t,
-            ]).succeeds().unwrap();
+            .with_args(&["makedb", "-i", "tests/data/random_3_2.fna", "-d", t])
+            .succeeds()
+            .unwrap();
 
         Assert::main_binary()
-            .with_args(&[
-                "query",
-                "-d",
-                t,
-                "-q",
-                "tests/data/random_3_2.fna",
-            ]).succeeds()
-            .stdout().is(
-                "0	0	0	CTT\n\
-                1	1	0	AGG\n").unwrap()
+            .with_args(&["query", "-d", t, "-q", "tests/data/random_3_2.fna"])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                1	1	0	AGG\n")
+            .unwrap()
     }
 
     // #[test]

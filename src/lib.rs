@@ -1,9 +1,8 @@
-
-use std::{fs::File, error::Error};
-use serde::{Serialize, Deserialize};
-use std::time::{Instant};
-use std::io::{Write, Read};
-use needletail::{parse_fastx_file};
+use needletail::parse_fastx_file;
+use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
+use std::time::Instant;
+use std::{error::Error, fs::File};
 
 use log::{debug, info};
 
@@ -13,7 +12,7 @@ pub const AUTHOR_AND_EMAIL: &str =
 #[derive(Serialize, Deserialize, Debug)]
 struct WindowSet {
     version: u32,
-    windows: Vec<Vec<bool>>
+    windows: Vec<Vec<bool>>,
 }
 
 pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> {
@@ -22,20 +21,31 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
 
     // Open the query file as a fasta file.
     debug!("Opening subject fasta file: {}", subject_fasta);
-    let mut subject_reader = parse_fastx_file(&subject_fasta).expect("valid path/file of subject fasta");
+    let mut subject_reader =
+        parse_fastx_file(&subject_fasta).expect("valid path/file of subject fasta");
 
     let mut encoded = Vec::new();
     info!("Encoding subject sequences ..");
     while let Some(record) = subject_reader.next() {
         let record = record.expect("valid record");
-        let encoded1 = record.seq().iter().map(|c| encode_single(*c)).flatten().collect::<Vec<_>>();
+        let encoded1 = record
+            .seq()
+            .iter()
+            .map(|c| encode_single(*c))
+            .flatten()
+            .collect::<Vec<_>>();
         encoded.push(encoded1);
     }
-    
-    let windows = WindowSet { 
+
+    let windows = WindowSet {
         version: 1,
-        windows: encoded };
-    info!("Encoding of {} sequences complete, writing db file {}", windows.windows.len(), db_path);
+        windows: encoded,
+    };
+    info!(
+        "Encoding of {} sequences complete, writing db file {}",
+        windows.windows.len(),
+        db_path
+    );
 
     // Encode
     let mut ferris_file = File::create(db_path)?;
@@ -48,11 +58,11 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
 #[inline(always)]
 fn encode_single(c: u8) -> [bool; 5] {
     match c {
-        b'A' => [true,false,false,false,false],
-        b'C' => [false,true,false,false,false],
-        b'G' => [false,false,true,false,false],
-        b'T' => [false,false,false,true,false],
-        b'N' | b'-' => [false,false,false,false,true],
+        b'A' => [true, false, false, false, false],
+        b'C' => [false, true, false, false, false],
+        b'G' => [false, false, true, false, false],
+        b'T' => [false, false, false, true, false],
+        b'N' | b'-' => [false, false, false, false, true],
         _ => {
             panic!("Invalid character in query sequence: {}", c)
         }
@@ -85,10 +95,12 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
             .collect::<Vec<_>>();
 
         // Get the minimum distance between the query and each window using xor.
-        let distances = windows.windows
+        let distances = windows
+            .windows
             .iter()
             .map(|window| {
-                window.iter()
+                window
+                    .iter()
                     .zip(query_vec.iter())
                     .map(|(a, b)| a ^ b)
                     .filter(|x| *x)
@@ -104,13 +116,13 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
             if distance == min_distance {
                 let mut s = String::new();
                 for j in 0..windows.windows[i].len() / 5 {
-                    let slice = &windows.windows[i][j*5..(j+1)*5];
+                    let slice = &windows.windows[i][j * 5..(j + 1) * 5];
                     s.push(match slice {
                         [true, false, false, false, false] => 'A',
                         [false, true, false, false, false] => 'C',
                         [false, false, true, false, false] => 'G',
                         [false, false, false, true, false] => 'T',
-                        _ => 'N' // possibly a gap, but we don't know. eh.
+                        _ => 'N', // possibly a gap, but we don't know. eh.
                     });
                 }
                 println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
@@ -119,6 +131,9 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
         query_number += 1;
     }
 
-    info!("Querying complete, took {} seconds", start.elapsed().as_secs());
+    info!(
+        "Querying complete, took {} seconds",
+        start.elapsed().as_secs()
+    );
     return Ok(());
 }
