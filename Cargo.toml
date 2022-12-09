@@ -1,13 +1,34 @@
 [package]
-name = "smafa_naive"
+name = "smafa"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ben Woodcroft <benjwoodcroft@gmail.com>"]
+license = "GPL-3.0"
+description = "Read aligner for small pre-aligned sequences"
+homepage = "https://github.com/wwood/smafa"
+repository = "https://github.com/wwood/smafa"
+documentation = "https://github.com/wwood/smafa"
+readme = "README.md"
+exclude = [ # Max upload is 10MB, as of writing test data was 15MB
+  "tests/*",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-bendy = { version = "^0.3", features = ["std", "serde"] }
-serde_cbor = "0.11"
-postcard = { version = "1.0.0", features = ["alloc"] }
-heapless = "*"
+serde = { version = "1.*", features = ["derive"] }
+postcard = { version = "1.*", features = ["alloc"] }
+clap = { version = "4.*", features = ["cargo"] }
+log = "0.4.*"
+env_logger = "0.10.*"
+# bird_tool_utils = { git = "https://github.com/wwood/bird_tool_utils" }
+bird_tool_utils = { path = "../bird_tool_utils" }
+needletail = "0.4.*"
+
+[dev-dependencies]
+tempfile = "^3.1.0"
+assert_cli = "0.6.*"
+
+[profile.release]
+strip = true
+lto = true

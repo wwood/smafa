@@ -1,126 +1,63 @@
-use std::{io::BufRead, fs::File, error::Error};
-use serde::{Serialize, Deserialize};
-use std::time::{Instant};
-use std::io::{Write, Read};
+use bird_tool_utils::clap_utils::{add_clap_verbosity_flags};
+use bird_tool_utils::clap_utils::set_log_level as set_log_level_bird_tool_utils;
+use clap::*;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct WindowSet {
-    version: u32,
-    windows: Vec<Vec<bool>>
-}
+use std::env;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() == 1 {
-        return encode();
-    } else if args.len() == 2 {
-        if args[1] == "query" {
-            return query(&"windows.cbor");
-        } else if args[1] == "encode" {
-            return encode();
-        } else {
-            panic!("Unknown argument: {}", args[1]);
-        }
-    } else {
-        return Err("Usage: ./main subcommand".into());
-    }
-}
+use smafa::*;
 
-fn encode() -> Result<(), Box<dyn Error>> {
-    // Iterate over lines, creating a vector of bools by one hot encoding
-    // the input.
-    let encoded = std::io::stdin()
-        .lock()
-        .lines()
-        .map(|line| {
-            line.unwrap()
-                .chars()
-                .map(|c| 
-                    match c {
-                        'A' => [true,false,false,false,false],
-                        'C' => [false,true,false,false,false],
-                        'G' => [false,false,true,false,false],
-                        'T' => [false,false,false,true,false],
-                        _ => [false,false,false,false,true]
-                    }
-                )
-                .flatten()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    let windows = WindowSet { 
-        version: 1,
-        windows: encoded };
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    
+    let mut app = build_cli();
+    let matches = app.clone().get_matches();
+    set_log_level(&matches, false);
 
-    // Encode
-    let mut ferris_file = File::create("windows.cbor")?;
-    ferris_file.write(&postcard::to_allocvec(&windows).unwrap())?;
-    return Ok(());
-}
-
-fn query(filename: &str) -> Result<(), Box<dyn Error>> {
-    // Decode
-    let mut start = Instant::now();
-    let mut ferris_file = File::open(filename)?;
-    let mut buffer = Vec::new();
-    ferris_file.read_to_end(&mut buffer)?;
-    let windows: WindowSet = postcard::from_bytes(&buffer)?;
-    eprintln!("Decoded in {}ms", start.elapsed().as_millis()); start = Instant::now();
-
-    // encode a line from stdin as a vector of bools
-    let query_vec = std::io::stdin()
-        .lock()
-        .lines()
-        .next()
-        .unwrap()
-        .unwrap()
-        .chars()
-        .map(|c| 
-            match c {
-                'A' => [true,false,false,false,false],
-                'C' => [false,true,false,false,false],
-                'G' => [false,false,true,false,false],
-                'T' => [false,false,false,true,false],
-                _ => [false,false,false,false,true]
-            }
-        )
-        .flatten()
-        .collect::<Vec<_>>();
-
-    // Get the minimum distance between the query and each window using xor.
-    let distances = windows.windows
-        .iter()
-        .map(|window| {
-            window.iter()
-                .zip(query_vec.iter())
-                .map(|(a, b)| a ^ b)
-                .filter(|x| *x)
-                .count()
-        })
-        .collect::<Vec<_>>();
-    eprintln!("Distanced in {}ms", start.elapsed().as_millis()); start = Instant::now();
-
-    // Find the minimum distance.
-    let min_distance = distances.iter().min().unwrap();
-    eprintln!("Found minimum in {}ms", start.elapsed().as_millis()); start = Instant::now();
-
-    // Print the windows with the minimum distance.
-    for (i, distance) in distances.iter().enumerate() {
-        if distance == min_distance {
-            let mut s = String::new();
-            for j in 0..windows.windows[i].len() / 5 {
-                let slice = &windows.windows[i][j*5..(j+1)*5];
-                s.push(match slice {
-                    [true, false, false, false, false] => 'A',
-                    [false, true, false, false, false] => 'C',
-                    [false, false, true, false, false] => 'G',
-                    [false, false, false, true, false] => 'T',
-                    _ => 'x'
-                });
-            }
-            println!("{} {} {}", i, distance, s);
+    match matches.subcommand_name() {
+        Some("query") => {
+            let m = matches.subcommand_matches("query").unwrap();
+            let db_root = m.get_one::<String>("database").unwrap();
+            let query_fasta = m.get_one::<String>("query").unwrap();
+            return smafa::query(
+                db_root,
+                query_fasta)
+        },
+        Some("makedb") => {
+            let m = matches.subcommand_matches("makedb").unwrap();
+            let subject_fasta = m.get_one::<String>("input").unwrap();
+            let database = m.get_one::<String>("database").unwrap();
+            return smafa::makedb(
+                subject_fasta,
+                database)
+        },
+        _ => {
+            app.print_help().unwrap();
+            println!();
+            return Ok(());
         }
     }
-    eprintln!("Printed in {}ms", start.elapsed().as_millis());
-    return Ok(());
+}
+
+fn set_log_level(matches: &clap::ArgMatches, is_last: bool) {
+    set_log_level_bird_tool_utils(matches, is_last, "Smafa", crate_version!());
+}
+
+fn build_cli() -> Command {
+    return command!()
+        // .version(crate_version!())
+        .author(crate::AUTHOR_AND_EMAIL)
+        // .about("Read aligner for small pre-aligned sequences")
+        .arg(arg!(-v --verbose "Print extra debug logging information"))
+        .arg(arg!(-q --quiet "Unless there is an error, do not print logging information"))
+        .subcommand(
+            add_clap_verbosity_flags(
+                Command::new("makedb")
+                    .about("Generate a searchable database")
+                    .arg(arg!(-i --input <FILE> "Subject sequences to search against"))
+                    .arg(arg!(-d --database <FILE> "Output DB filename"))))
+        .subcommand(
+            add_clap_verbosity_flags(
+                Command::new("query")
+                    .about("Search a database")
+                    .arg(arg!(-d --database <FILE> "Output from makedb")))
+                    .arg(arg!(-q --query <FILE> "Query sequences to search with")));
 }
