@@ -142,20 +142,19 @@ pub fn query(
                 min_distances.sort();
 
                 // If max num hits is greater than the number of windows, just print them all.
-                let max_distance = match max_num_hits - 1 >= min_distances.len() as u32 {
+                let max_distance = match max_num_hits > min_distances.len() as u32 {
                     true => *distances.iter().max().unwrap(),
                     false => min_distances[(max_num_hits - 1) as usize].0,
                 };
 
                 // Print out the windows that qualify in order of increasing distance.
                 for (distance, i) in min_distances.iter() {
-                    if *distance <= max_distance {
-                        if max_divergence.is_none()
-                            || (*distance) / 2 <= max_divergence.unwrap() as usize
-                        {
-                            let s = get_hit_sequence(&windows.windows[*i]);
-                            println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
-                        }
+                    if *distance <= max_distance
+                        && (max_divergence.is_none()
+                            || *distance / 2 <= max_divergence.unwrap() as usize)
+                    {
+                        let s = get_hit_sequence(&windows.windows[*i]);
+                        println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
                     }
                 }
             }
