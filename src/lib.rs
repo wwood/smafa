@@ -68,7 +68,30 @@ fn encode_single(c: u8) -> [bool; 5] {
     }
 }
 
-pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
+fn get_hit_sequence(hit_bools: &Vec<bool>) -> String {
+    let mut s = String::new();
+    for j in 0..hit_bools.len() / 5 {
+        let slice = &hit_bools[j * 5..(j + 1) * 5];
+        s.push(match slice {
+            [true, false, false, false, false] => 'A',
+            [false, true, false, false, false] => 'C',
+            [false, false, true, false, false] => 'G',
+            [false, false, false, true, false] => 'T',
+            [false, false, false, false, true] => 'N',
+            _ => {
+                panic!("Invalid character in query sequence: {:?}", slice)
+            }
+        });
+    }
+    s
+}
+
+pub fn query(
+    db_path: &str,
+    query_fasta: &str,
+    max_divergence: Option<u32>,
+    max_num_hits: Option<u32>,
+) -> Result<(), Box<dyn Error>> {
     // Decode
     info!("Decoding db file {}", db_path);
     let start = Instant::now();
@@ -106,26 +129,54 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
             })
             .collect::<Vec<_>>();
 
-        // Find the minimum distance.
-        let min_distance = distances.iter().min().unwrap();
+        // Find the max_num_hits'th minimum distance.
+        match max_num_hits {
+            Some(max_num_hits) => {
+                let mut min_distances = distances
+                    .iter()
+                    .enumerate()
+                    .map(|(i, d)| (*d, i))
+                    .collect::<Vec<_>>();
+                // There might be a faster way of doing this using a priority
+                // queue, but eh for now unless it really is slow.
+                min_distances.sort();
 
-        // Print the windows with the minimum distance.
-        for (i, distance) in distances.iter().enumerate() {
-            if distance == min_distance {
-                let mut s = String::new();
-                for j in 0..windows.windows[i].len() / 5 {
-                    let slice = &windows.windows[i][j * 5..(j + 1) * 5];
-                    s.push(match slice {
-                        [true, false, false, false, false] => 'A',
-                        [false, true, false, false, false] => 'C',
-                        [false, false, true, false, false] => 'G',
-                        [false, false, false, true, false] => 'T',
-                        _ => 'N', // possibly a gap, but we don't know. eh.
-                    });
+                // If max num hits is greater than the number of windows, just print them all.
+                let max_distance = match max_num_hits - 1 >= min_distances.len() as u32 {
+                    true => *distances.iter().max().unwrap(),
+                    false => min_distances[(max_num_hits - 1) as usize].0,
+                };
+
+                // Print out the windows that qualify in order of increasing distance.
+                for (distance, i) in min_distances.iter() {
+                    if *distance <= max_distance {
+                        if max_divergence.is_none()
+                            || (*distance) / 2 <= max_divergence.unwrap() as usize
+                        {
+                            let s = get_hit_sequence(&windows.windows[*i]);
+                            println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
+                        }
+                    }
                 }
-                println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+            }
+            None => {
+                // Find the minimum distance.
+                let min_distance = distances.iter().min().unwrap();
+                debug!("Min distance: {}", min_distance);
+
+                // Print the windows with the minimum distance.
+                if max_divergence.is_none() || min_distance / 2 <= max_divergence.unwrap() as usize
+                {
+                    for (i, distance) in distances.iter().enumerate() {
+                        if distance == min_distance {
+                            let s = get_hit_sequence(&windows.windows[i]);
+                            println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
+                        }
+                    }
+                }
             }
         }
+
         query_number += 1;
     }
 
@@ -134,4 +185,44 @@ pub fn query(db_path: &str, query_fasta: &str) -> Result<(), Box<dyn Error>> {
         start.elapsed().as_secs()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_makedb() {
+        // Create a temporary directory to store the test DB file.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db_path_str = db_path.to_str().unwrap();
+        let subject_fasta = "tests/data/subjects.fa";
+
+        // Call the makedb function with the test subject FASTA file and the path
+        // to the test DB file.
+        assert!(makedb(subject_fasta, &db_path_str).is_ok());
+
+        // Check that the DB file exists.
+        assert!(db_path.exists());
+
+        // Open the DB file and decode it to a WindowSet struct.
+        let mut ferris_file = File::open(&db_path).unwrap();
+        let mut encoded = Vec::new();
+        ferris_file.read_to_end(&mut encoded).unwrap();
+        let windows = postcard::from_bytes::<WindowSet>(&encoded).unwrap();
+
+        // Check that the WindowSet struct has the expected number of sequences.
+        assert_eq!(windows.windows.len(), 5);
+
+        // Check that the first sequence has the expected one-hot encoded values.
+        let expected_encoded = vec![
+            vec![true, false, false, false, false],
+            vec![false, true, false, false, false],
+            vec![false, false, true, false, false],
+            vec![false, false, false, true, false],
+            vec![false, false, false, false, true],
+        ];
+        assert_eq!(windows.windows, expected_encoded);
+    }
 }

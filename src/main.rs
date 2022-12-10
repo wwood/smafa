@@ -17,7 +17,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             set_log_level(m, true);
             let db_root = m.get_one::<String>("database").unwrap();
             let query_fasta = m.get_one::<String>("query").unwrap();
-            smafa::query(db_root, query_fasta)
+            let max_divergence = m.get_one::<u32>("max-divergence");
+            let max_num_hits = m.get_one::<u32>("max-num-hits");
+            smafa::query(
+                db_root,
+                query_fasta,
+                max_divergence.copied(),
+                max_num_hits.copied(),
+            )
         }
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
@@ -49,12 +56,18 @@ fn build_cli() -> Command {
                 .arg(arg!(-i --input <FILE> "Subject sequences to search against"))
                 .arg(arg!(-d --database <FILE> "Output DB filename")),
         ))
-        .subcommand(
-            add_clap_verbosity_flags(
-                Command::new("query")
-                    .about("Search a database")
-                    .arg(arg!(-d --database <FILE> "Output from makedb")),
-            )
-            .arg(arg!(-q --query <FILE> "Query sequences to search with")),
-        )
+        .subcommand(add_clap_verbosity_flags(
+            Command::new("query")
+                .about("Search a database")
+                .arg(arg!(-d --database <FILE> "Output from makedb"))
+                .arg(arg!(-q --query <FILE> "Query sequences to search with"))
+                .arg(
+                    arg!( --"max-divergence" <INT> "Maximum divergence to report hits for")
+                        .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!( --"max-num-hits" <INT> "Maximum number of hits to report")
+                        .value_parser(value_parser!(u32)),
+                ),
+        ))
 }

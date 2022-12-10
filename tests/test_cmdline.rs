@@ -24,6 +24,113 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_query_max_divergence_unlimited() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-divergence",
+                "99",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                0	1	3	AGG\n\
+                1	1	0	AGG\n\
+                1	0	3	CTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_max_divergence_limited() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-divergence",
+                "2",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                1	1	0	AGG\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_max_divergence_equal() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-divergence",
+                "3",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                0	1	3	AGG\n\
+                1	1	0	AGG\n\
+                1	0	3	CTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_max_num_hits1() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-num-hits",
+                "1",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                1	1	0	AGG\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_max_num_hits_more() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                0	1	3	AGG\n\
+                1	1	0	AGG\n\
+                1	0	3	CTT\n")
+            .unwrap()
+    }
+
     // #[test]
     // fn test_db_version_incompatibility(){
     //     Assert::main_binary()
