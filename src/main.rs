@@ -58,7 +58,13 @@ fn build_cli() -> Command {
         ))
         .subcommand(add_clap_verbosity_flags(
             Command::new("query")
-                .about("Search a database")
+                .about("Search a database. See query --help for more information about output format.")
+                .long_about("This command searches a database for query sequences. The database must be generated with the `makedb` command. The query sequences can be in FASTA or FASTQ format. The output is a tab-separated file with the following columns:\n\
+                \n\
+                1. Query sequence number (0-indexed)\n\
+                2. Subject sequence number (0-indexed)\n\
+                3. Divergence (number of nucleotides different between the two sequences\n\
+                4. Subject sequence (except dashes are shown as Ns)")
                 .arg(arg!(-d --database <FILE> "Output from makedb"))
                 .arg(arg!(-q --query <FILE> "Query sequences to search with"))
                 .arg(
