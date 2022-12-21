@@ -36,8 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("count") => {
             let m = matches.subcommand_matches("count").unwrap();
             set_log_level(m, true);
-            let fastq = m.get_one::<String>("input").unwrap();
-            smafa::count(fastq)
+            let fastx_files = m.get_many::<String>("input").unwrap().collect();
+            smafa::count(&fastx_files)
         }
         _ => {
             app.print_help().unwrap();
@@ -85,6 +85,9 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("count")
                 .about("Print the number of reads/bases in a possibly gzipped FASTX file")
-                .arg(arg!(-i --input <FILE> "FASTQ file to count")),
+                .arg(arg!(-i --input <FILE> "FASTQ file to count")
+                // allow multipl
+                .num_args(0..)
+            ),
         ))
 }

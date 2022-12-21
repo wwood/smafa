@@ -24,6 +24,7 @@ env_logger = "0.10.*"
 bird_tool_utils = { git = "https://github.com/wwood/bird_tool_utils" }
 # bird_tool_utils = { path = "../bird_tool_utils" }
 needletail = "0.4.*"
+serde_json = "1.0"
 
 [dev-dependencies]
 tempfile = "^3.1.0"

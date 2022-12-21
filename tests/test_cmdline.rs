@@ -137,7 +137,7 @@ mod tests {
             .with_args(&["count", "-i", "tests/data/random_3_2.fna"])
             .succeeds()
             .stdout()
-            .is("{\"path\": tests/data/random_3_2.fna, \"num_reads\": 2, \"num_bases\": 6}\n")
+            .is("[{\"path\":\"tests/data/random_3_2.fna\",\"num_reads\":2,\"num_bases\":6}]\n")
             .unwrap()
     }
 
@@ -147,7 +147,7 @@ mod tests {
             .with_args(&["count", "-i", "tests/data/random_30_4.fq.gz"])
             .succeeds()
             .stdout()
-            .is("{\"path\": tests/data/random_30_4.fq.gz, \"num_reads\": 4, \"num_bases\": 120}\n")
+            .is("[{\"path\":\"tests/data/random_30_4.fq.gz\",\"num_reads\":4,\"num_bases\":120}]\n")
             .unwrap()
     }
 

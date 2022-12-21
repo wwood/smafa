@@ -1,5 +1,6 @@
 use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::io::{Read, Write};
 use std::time::Instant;
 use std::{error::Error, fs::File};
@@ -226,19 +227,32 @@ mod tests {
     }
 }
 
-pub fn count(path: &str) -> Result<(), Box<dyn Error>> {
-    let mut reader = parse_fastx_file(path)?;
-    let mut read_count = 0;
-    let mut bases_count = 0;
-    while let Some(record) = reader.next() {
-        let record = record?;
-        read_count += 1;
-        bases_count += record.seq().len();
+// Derive IntoJson
+#[derive(Serialize, Deserialize, Debug)]
+struct CountResult {
+    path: String,
+    num_reads: usize,
+    num_bases: usize,
+}
+
+pub fn count(paths: &Vec<&String>) -> Result<(), Box<dyn Error>> {
+    let mut results = Vec::new();
+    for path in paths {
+        let mut reader = parse_fastx_file(path)?;
+        let mut read_count = 0;
+        let mut bases_count = 0;
+        while let Some(record) = reader.next() {
+            let record = record?;
+            read_count += 1;
+            bases_count += record.seq().len();
+        }
+        results.push(CountResult {
+            path: path.to_string(),
+            num_reads: read_count,
+            num_bases: bases_count,
+        });
     }
     // Print output in JSON format including input path
-    println!(
-        "{{\"path\": {}, \"num_reads\": {}, \"num_bases\": {}}}",
-        path, read_count, bases_count
-    );
+    println!("{}", serde_json::to_string(&results).unwrap());
     Ok(())
 }
