@@ -131,6 +131,26 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_fna_count() {
+        Assert::main_binary()
+            .with_args(&["count", "-i", "tests/data/random_3_2.fna"])
+            .succeeds()
+            .stdout()
+            .is("{\"path\": tests/data/random_3_2.fna, \"num_reads\": 2, \"num_bases\": 6}\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_fq_gz_count() {
+        Assert::main_binary()
+            .with_args(&["count", "-i", "tests/data/random_30_4.fq.gz"])
+            .succeeds()
+            .stdout()
+            .is("{\"path\": tests/data/random_30_4.fq.gz, \"num_reads\": 4, \"num_bases\": 120}\n")
+            .unwrap()
+    }
+
     // #[test]
     // fn test_db_version_incompatibility(){
     //     Assert::main_binary()

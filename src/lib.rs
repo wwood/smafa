@@ -225,3 +225,20 @@ mod tests {
         assert_eq!(windows.windows, expected_encoded);
     }
 }
+
+pub fn count(path: &str) -> Result<(), Box<dyn Error>> {
+    let mut reader = parse_fastx_file(path)?;
+    let mut read_count = 0;
+    let mut bases_count = 0;
+    while let Some(record) = reader.next() {
+        let record = record?;
+        read_count += 1;
+        bases_count += record.seq().len();
+    }
+    // Print output in JSON format including input path
+    println!(
+        "{{\"path\": {}, \"num_reads\": {}, \"num_bases\": {}}}",
+        path, read_count, bases_count
+    );
+    Ok(())
+}

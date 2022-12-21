@@ -33,6 +33,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let database = m.get_one::<String>("database").unwrap();
             smafa::makedb(subject_fasta, database)
         }
+        Some("count") => {
+            let m = matches.subcommand_matches("count").unwrap();
+            set_log_level(m, true);
+            let fastq = m.get_one::<String>("input").unwrap();
+            smafa::count(fastq)
+        }
         _ => {
             app.print_help().unwrap();
             println!();
@@ -75,5 +81,10 @@ fn build_cli() -> Command {
                     arg!( --"max-num-hits" <INT> "Maximum number of hits to report")
                         .value_parser(value_parser!(u32)),
                 ),
+        ))
+        .subcommand(add_clap_verbosity_flags(
+            Command::new("count")
+                .about("Print the number of reads/bases in a possibly gzipped FASTX file")
+                .arg(arg!(-i --input <FILE> "FASTQ file to count")),
         ))
 }
