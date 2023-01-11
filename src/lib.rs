@@ -1,6 +1,6 @@
 use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
-use serde_json;
+
 use std::io::{Read, Write};
 use std::time::Instant;
 use std::{error::Error, fs::File};
@@ -201,7 +201,7 @@ mod tests {
 
         // Call the makedb function with the test subject FASTA file and the path
         // to the test DB file.
-        assert!(makedb(subject_fasta, &db_path_str).is_ok());
+        assert!(makedb(subject_fasta, db_path_str).is_ok());
 
         // Check that the DB file exists.
         assert!(db_path.exists());
