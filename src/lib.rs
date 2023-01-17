@@ -105,16 +105,7 @@ pub fn query(
     let mut query_reader = parse_fastx_file(query_fasta).expect("valid path/file of query fasta");
 
     // 1 is a special case, it is equivalent to None.
-    let max_divergence_for_match = match max_num_hits {
-        Some(max_num_hits) => {
-            if max_num_hits == 1 {
-                None
-            } else {
-                Some(max_num_hits)
-            }
-        }
-        None => None,
-    };
+    let max_divergence_for_match = max_num_hits.filter(|&max_num_hits| max_num_hits != 1);
 
     // Iterate over the query file.
     info!("Querying ..");
