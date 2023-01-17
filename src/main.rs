@@ -71,14 +71,14 @@ fn build_cli() -> Command {
                 2. Subject sequence number (0-indexed)\n\
                 3. Divergence (number of nucleotides different between the two sequences\n\
                 4. Subject sequence (except dashes are shown as Ns)")
-                .arg(arg!(-d --database <FILE> "Output from makedb"))
-                .arg(arg!(-q --query <FILE> "Query sequences to search with"))
+                .arg(arg!(-d --database <FILE> "Output from makedb [required]"))
+                .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]"))
                 .arg(
-                    arg!( --"max-divergence" <INT> "Maximum divergence to report hits for")
+                    arg!( --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
                 )
                 .arg(
-                    arg!( --"max-num-hits" <INT> "Maximum number of hits to report")
+                    arg!( --"max-num-hits" <INT> "Maximum number of hits to report [default: 1]")
                         .value_parser(value_parser!(u32)),
                 ),
         ))
