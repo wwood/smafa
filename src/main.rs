@@ -19,11 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let query_fasta = m.get_one::<String>("query").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence");
             let max_num_hits = m.get_one::<u32>("max-num-hits");
+            let limit_per_sequence = m.get_one::<u32>("limit-per-sequence");
             smafa::query(
                 db_root,
                 query_fasta,
                 max_divergence.copied(),
                 max_num_hits.copied(),
+                limit_per_sequence.copied(),
             )
         }
         Some("makedb") => {
@@ -79,6 +81,10 @@ fn build_cli() -> Command {
                 )
                 .arg(
                     arg!( --"max-num-hits" <INT> "Maximum number of hits to report [default: 1]")
+                        .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
                 ),
         ))

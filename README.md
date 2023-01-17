@@ -22,7 +22,7 @@ cargo install smafa
 
 To run the aligner, first make a db with `smafa makedb` and then query that
 database with `smafa query`. To see how to use these modes, use e.g. `smafa
-makedb -h`.
+query --help`.
 
 ## Help
 If you have any questions or comments, please raise an issue on the GitHub

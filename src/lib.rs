@@ -92,6 +92,7 @@ pub fn query(
     query_fasta: &str,
     max_divergence: Option<u32>,
     max_num_hits: Option<u32>,
+    limit_per_sequence: Option<u32>,
 ) -> Result<(), Box<dyn Error>> {
     // Decode
     info!("Decoding db file {}", db_path);
@@ -152,12 +153,39 @@ pub fn query(
                 };
 
                 // Print out the windows that qualify in order of increasing distance.
+                let mut last_sequence: Option<(String, u32)> = None;
+                let mut new_last_sequence: Option<(String, u32)>; // to get around borrow checker
                 for (distance, i) in min_distances.iter() {
                     if *distance <= max_distance
                         && (max_divergence.is_none()
                             || *distance / 2 <= max_divergence.unwrap() as usize)
                     {
                         let s = get_hit_sequence(&windows.windows[*i]);
+                        debug!("Found hit sequence {} at distance {}", s, distance);
+
+                        if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
+                            // limit per sequence
+                            match &last_sequence {
+                                Some((last_seq, last_seq_count)) => {
+                                    if last_seq == &s {
+                                        if last_seq_count >= &limit_per_sequence_unwrapped {
+                                            continue;
+                                        } else {
+                                            new_last_sequence =
+                                                Some((s.clone(), last_seq_count + 1));
+                                        }
+                                    } else {
+                                        new_last_sequence = Some((s.clone(), 1));
+                                    }
+                                }
+                                None => {
+                                    new_last_sequence = Some((s.clone(), 1));
+                                }
+                            }
+                            last_sequence = new_last_sequence;
+                        }
+
+                        // Print the window if we make it here.
                         println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
                     }
                 }

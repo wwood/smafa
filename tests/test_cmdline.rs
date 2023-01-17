@@ -151,6 +151,52 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_limit_per_sequence_max_num_hits_2_no_limit() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2_one_repeated.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                0	1	3	AGG\n\
+                0	2	3	AGG\n\
+                1	1	0	AGG\n\
+                1	2	0	AGG\n\
+                1	0	3	CTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_limit_per_sequence_max_num_hits_2_limit1() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2_one_repeated.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+                "--max-num-hits",
+                "99",
+                "--limit-per-sequence",
+                "1",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                0	1	3	AGG\n\
+                1	1	0	AGG\n\
+                1	0	3	CTT\n")
+            .unwrap()
+    }
+
     // #[test]
     // fn test_db_version_incompatibility(){
     //     Assert::main_binary()
