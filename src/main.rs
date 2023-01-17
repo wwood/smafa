@@ -84,7 +84,7 @@ fn build_cli() -> Command {
                         .value_parser(value_parser!(u32)),
                 )
                 .arg(
-                    arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence [default: not used]")
+                    arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence. Requires --max-num-hits > 1 for now. [default: not used]")
                         .value_parser(value_parser!(u32)),
                 ),
         ))

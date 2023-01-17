@@ -195,6 +195,10 @@ pub fn query(
                 let min_distance = distances.iter().min().unwrap();
                 debug!("Min distance: {}", min_distance);
 
+                if limit_per_sequence.is_some() {
+                    panic!("limit_per_sequence is implemented unless max_num_hits > 1. It can be implemented by analogy, just haven't gotten around to it.");
+                }
+
                 // Print the windows with the minimum distance.
                 if max_divergence.is_none() || min_distance / 2 <= max_divergence.unwrap() as usize
                 {
