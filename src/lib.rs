@@ -104,6 +104,18 @@ pub fn query(
     // Open the query file as a fasta file.
     let mut query_reader = parse_fastx_file(query_fasta).expect("valid path/file of query fasta");
 
+    // 1 is a special case, it is equivalent to None.
+    let max_divergence_for_match = match max_num_hits {
+        Some(max_num_hits) => {
+            if max_num_hits == 1 {
+                None
+            } else {
+                Some(max_num_hits)
+            }
+        }
+        None => None,
+    };
+
     // Iterate over the query file.
     info!("Querying ..");
     let mut query_number: u32 = 0;
@@ -131,7 +143,7 @@ pub fn query(
             .collect::<Vec<_>>();
 
         // Find the max_num_hits'th minimum distance.
-        match max_num_hits {
+        match max_divergence_for_match {
             Some(max_num_hits) => {
                 let mut min_distances = distances
                     .iter()
