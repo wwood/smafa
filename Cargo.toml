@@ -32,6 +32,6 @@ assert_cli = "0.6.*"
 cargo-husky = { version="1", default-features = false, features=["precommit-hook", "run-cargo-fmt", "run-cargo-clippy"] }
 
 [profile.release]
-# strip = true # Commented out for profiling
-# lto = true # Commented out for profiling
-debug = true # For profiling of the code
+strip = true # Commented out for profiling
+lto = true # Commented out for profiling
+# debug = true # For profiling of the code

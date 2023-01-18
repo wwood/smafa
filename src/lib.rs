@@ -124,14 +124,7 @@ pub fn query(
             .collect::<Vec<_>>();
 
         // Get the minimum distance between the query and each window using xor.
-        for (i, window) in windows.windows.iter().enumerate() {
-            distances[i] = window
-                .iter()
-                .zip(query_vec.iter())
-                .map(|(a, b)| a ^ b)
-                .filter(|x| *x)
-                .count();
-        }
+        get_distances(&windows, &query_vec, &mut distances);
 
         // Find the max_num_hits'th minimum distance.
         match max_divergence_for_match {
@@ -219,6 +212,18 @@ pub fn query(
         start.elapsed().as_secs()
     );
     Ok(())
+}
+
+fn get_distances(windows: &WindowSet, query_vec: &[bool], distances: &mut Vec<usize>) {
+    for (i, window) in windows.windows.iter().enumerate() {
+        let mut distance = 0;
+        for (&bit, &q) in window.iter().zip(query_vec.iter()) {
+            if bit != q {
+                distance += 1;
+            }
+        }
+        distances[i] = distance;
+    }
 }
 
 #[cfg(test)]
