@@ -214,7 +214,7 @@ pub fn query(
     Ok(())
 }
 
-fn get_distances(windows: &WindowSet, query_vec: &[bool], distances: &mut Vec<usize>) {
+fn get_distances(windows: &WindowSet, query_vec: &[bool], distances: &mut [usize]) {
     for (i, window) in windows.windows.iter().enumerate() {
         let mut distance = 0;
         for (&bit, &q) in window.iter().zip(query_vec.iter()) {
