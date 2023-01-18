@@ -108,6 +108,9 @@ pub fn query(
     // 1 is a special case, it is equivalent to None.
     let max_divergence_for_match = max_num_hits.filter(|&max_num_hits| max_num_hits != 1);
 
+    // Pre-initialise the distances vector so don't have to continually reallocate.
+    let mut distances = vec![0; windows.windows.len()];
+
     // Iterate over the query file.
     info!("Querying ..");
     let mut query_number: u32 = 0;
@@ -121,18 +124,14 @@ pub fn query(
             .collect::<Vec<_>>();
 
         // Get the minimum distance between the query and each window using xor.
-        let distances = windows
-            .windows
-            .iter()
-            .map(|window| {
-                window
-                    .iter()
-                    .zip(query_vec.iter())
-                    .map(|(a, b)| a ^ b)
-                    .filter(|x| *x)
-                    .count()
-            })
-            .collect::<Vec<_>>();
+        for (i, window) in windows.windows.iter().enumerate() {
+            distances[i] = window
+                .iter()
+                .zip(query_vec.iter())
+                .map(|(a, b)| a ^ b)
+                .filter(|x| *x)
+                .count();
+        }
 
         // Find the max_num_hits'th minimum distance.
         match max_divergence_for_match {
