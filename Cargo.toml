@@ -1,6 +1,6 @@
 [package]
 name = "smafa"
-version = "0.6.0-pre"
+version = "0.6.0"
 edition = "2021"
 authors = ["Ben Woodcroft <benjwoodcroft@gmail.com>"]
 license = "GPL-3.0"
@@ -32,6 +32,6 @@ assert_cli = "0.6.*"
 cargo-husky = { version="1", default-features = false, features=["precommit-hook", "run-cargo-fmt", "run-cargo-clippy"] }
 
 [profile.release]
-strip = true # Commented out for profiling
-lto = true # Commented out for profiling
+strip = true # Comment out for profiling
+lto = true # Comment out for profiling
 # debug = true # For profiling of the code
