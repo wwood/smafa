@@ -64,7 +64,7 @@ fn encode_single(c: u8) -> [bool; 5] {
         b'T' => [false, false, false, true, false],
         b'N' | b'-' => [false, false, false, false, true],
         _ => {
-            panic!("Invalid character in query sequence: {}", c)
+            panic!("Invalid character in query sequence: {c}")
         }
     }
 }
@@ -80,7 +80,7 @@ fn get_hit_sequence(hit_bools: &Vec<bool>) -> String {
             [false, false, false, true, false] => 'T',
             [false, false, false, false, true] => 'N',
             _ => {
-                panic!("Invalid character in query sequence: {:?}", slice)
+                panic!("Invalid character in query sequence: {slice:?}")
             }
         });
     }
