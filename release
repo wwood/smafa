@@ -82,4 +82,4 @@ if __name__ == '__main__':
     # print(extern.run('git commit -am "v{}"'.format(args.version)))
     print(extern.run('git tag v{}'.format(args.version)))
 
-    logging.info("Now run git push && git push --tags && cargo publish")
+    logging.info("Now run cargo publish && git push && git push --tags")
