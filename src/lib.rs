@@ -7,6 +7,9 @@ use std::{error::Error, fs::File};
 
 use log::{debug, info};
 
+mod cluster;
+pub use cluster::cluster;
+
 pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 

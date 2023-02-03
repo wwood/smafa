@@ -1,0 +1,8 @@
+>seq1
+ATGCAAAAA
+>seq2 diff 2 to seq1 and 1 to seq3
+ATAAAAAAA
+>seq3
+TTAAAAAAA
+>seq4 same as seq2 so should not be reported
+ATAAAAAAA

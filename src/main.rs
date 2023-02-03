@@ -35,6 +35,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let database = m.get_one::<String>("database").unwrap();
             smafa::makedb(subject_fasta, database)
         }
+        Some("cluster") => {
+            let m = matches.subcommand_matches("cluster").unwrap();
+            set_log_level(m, true);
+            let input_fasta = m.get_one::<String>("input").unwrap();
+            let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
+            smafa::cluster(input_fasta, *max_divergence, &mut std::io::stdout())
+        }
         Some("count") => {
             let m = matches.subcommand_matches("count").unwrap();
             set_log_level(m, true);
@@ -85,6 +92,15 @@ fn build_cli() -> Command {
                 )
                 .arg(
                     arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence. Requires --max-num-hits > 1 for now. [default: not used]")
+                        .value_parser(value_parser!(u32)),
+                ),
+        ))
+        .subcommand(add_clap_verbosity_flags(
+            Command::new("cluster")
+                .about("Cluster sequences by similarity")
+                .arg(arg!(-i --input <FILE> "FASTA file to cluster"))
+                .arg(
+                    arg!(-d --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
                 ),
         ))
