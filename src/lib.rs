@@ -65,7 +65,10 @@ fn encode_single(c: u8) -> [bool; 5] {
         b'C' => [false, true, false, false, false],
         b'G' => [false, false, true, false, false],
         b'T' => [false, false, false, true, false],
-        b'N' | b'-' => [false, false, false, false, true],
+        b'U' => [false, false, false, true, false],
+        b'N' | b'-' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' => {
+            [false, false, false, false, true]
+        }
         _ => {
             panic!("Invalid character in query sequence: {c}")
         }

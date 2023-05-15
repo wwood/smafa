@@ -25,6 +25,39 @@ mod tests {
     }
 
     #[test]
+    fn test_degenerate_makedb_and_query() {
+        let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        let t = tf.path().to_str().unwrap();
+        Assert::main_binary()
+            .with_args(&["makedb", "-i", "tests/data/degenerate.fna", "-d", t])
+            .succeeds()
+            .unwrap();
+
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                t,
+                "-q",
+                "tests/data/degenerate.fna",
+                "--max-num-hits",
+                "99",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTTNGG\n\
+                0	1	5	AGGTGA\n\
+                0	2	6	NACTTT\n\
+                1	1	0	AGGTGA\n\
+                1	0	5	CTTNGG\n\
+                1	2	5	NACTTT\n\
+                2	2	0	NACTTT\n\
+                2	1	5	AGGTGA\n\
+                2	0	6	CTTNGG\n")
+            .unwrap()
+    }
+
+    #[test]
     fn test_query_max_divergence_unlimited() {
         Assert::main_binary()
             .with_args(&[
