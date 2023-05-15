@@ -42,6 +42,8 @@ mod tests {
                 "tests/data/degenerate.fna",
                 "--max-divergence",
                 "3",
+                "--max-num-hits",
+                "99",
             ])
             .succeeds()
             .stdout()
