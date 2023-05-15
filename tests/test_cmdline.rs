@@ -40,16 +40,20 @@ mod tests {
                 t,
                 "-q",
                 "tests/data/degenerate.fna",
-                "--max-divergence",
-                "3",
                 "--max-num-hits",
                 "99",
             ])
             .succeeds()
             .stdout()
             .is("0	0	0	CTTNGG\n\
+                0	1	5	AGGTGA\n\
+                0	2	6	NACTTT\n\
                 1	1	0	AGGTGA\n\
-                2	2	0	NACTTT\n")
+                1	0	5	CTTNGG\n\
+                1	2	5	NACTTT\n\
+                2	2	0	NACTTT\n\
+                2	1	5	AGGTGA\n\
+                2	0	6	CTTNGG\n")
             .unwrap()
     }
 
