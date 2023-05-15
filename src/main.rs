@@ -79,7 +79,7 @@ fn build_cli() -> Command {
                 1. Query sequence number (0-indexed)\n\
                 2. Subject sequence number (0-indexed)\n\
                 3. Divergence (number of nucleotides different between the two sequences\n\
-                4. Subject sequence (except dashes are shown as Ns)")
+                4. Subject sequence (with dashes and degenerate base symbols shown as Ns)")
                 .arg(arg!(-d --database <FILE> "Output from makedb [required]"))
                 .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]"))
                 .arg(
