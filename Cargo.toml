@@ -20,7 +20,7 @@ serde = { version = "1.*", features = ["derive"] }
 postcard = { version = "1.*", features = ["alloc"] }
 clap = { version = "4.*", features = ["cargo"] }
 log = "0.4.*"
-env_logger = "0.10.*"
+env_logger = "0.11.*"
 bird_tool_utils = "0.4.*"
 # { git = "https://github.com/wwood/bird_tool_utils" }
 # bird_tool_utils = { path = "../bird_tool_utils" }
