@@ -2,6 +2,7 @@ use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
 
 use std::io::{Read, Write};
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::{error::Error, fs::File};
@@ -33,11 +34,7 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
     info!("Encoding subject sequences ..");
     while let Some(record) = subject_reader.next() {
         let record = record.expect("valid record");
-        let encoded1 = record
-            .seq()
-            .iter()
-            .map(|c| encode_single(*c))
-            .collect::<Vec<_>>();
+        let encoded1 = build_encoding_from_seq(record.id(), &record.seq());
         encoded.push(encoded1);
     }
 
@@ -81,15 +78,29 @@ const BYTE_LUT: [u8; 256] = create_lut();
 
 // inline this function, performance affects untested, guessing it's better
 #[inline(always)]
-fn encode_single(c: u8) -> u8 {
+fn encode_single(c: u8) -> Option<NonZeroU8> {
     let lut: [u8; 256] = BYTE_LUT; // statically verify lut has 256 elements
 
     // Safety: We just verified it has indices 0-255, so a u8 can't be out of bounds
     let encoding = unsafe { *lut.get_unchecked(c as usize) };
-    if encoding == 0 {
-        panic!("Invalid character in query sequence: {c}")
-    }
-    encoding
+    NonZeroU8::new(encoding)
+}
+
+fn build_encoding_from_seq(identifier: &[u8], seq: &[u8]) -> Vec<u8> {
+    seq.iter()
+        .enumerate()
+        .map(|(i, &b)| {
+            encode_single(b)
+                .unwrap_or_else(|| {
+                    let seqname = String::from_utf8_lossy(identifier);
+                    panic!(
+                        "Byte {} cannot be interpreted as nucleotide, in sequence \"{}\" at position {}",
+                        b, seqname, i
+                    )
+                })
+                .get()
+        })
+        .collect()
 }
 
 fn get_hit_sequence(hit_bytes: &[u8]) -> String {
@@ -139,12 +150,8 @@ pub fn query(
     let mut query_number: u32 = 0;
     while let Some(record) = query_reader.next() {
         // encode a line from stdin as a vector of bools
-        let query_vec = record
-            .expect("Failed to parse query sequence")
-            .seq()
-            .iter()
-            .map(|c| encode_single(*c))
-            .collect::<Vec<_>>();
+        let record = record.expect("Failed to parse query sequence");
+        let query_vec = build_encoding_from_seq(record.id(), &record.seq());
 
         // Get the minimum distance between the query and each window using xor.
         get_distances(&windows, &query_vec, &mut distances);

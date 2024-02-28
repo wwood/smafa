@@ -8,7 +8,7 @@ use std::time::Instant;
 use log::debug;
 use log::info;
 
-use crate::encode_single;
+use crate::build_encoding_from_seq;
 use crate::get_distances;
 use crate::get_hit_sequence;
 use crate::WindowSet;
@@ -44,8 +44,8 @@ pub fn cluster(
         // Encode as vec of bools
         let record_unwrapped = record.expect("Failed to parse input sequence");
         let seq = record_unwrapped.seq();
-        let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
-
+        //let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
+        let query_vec = build_encoding_from_seq(record_unwrapped.id(), &record_unwrapped.seq());
         // Skip if sequence has already been seen
         if seen_sequences.contains(&query_vec) {
             continue;
