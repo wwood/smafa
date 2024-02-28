@@ -63,14 +63,12 @@ const fn create_lut() -> [u8; 256] {
     let mut i = 0;
     while i < 256 {
         let b = match i as u8 {
-            b'A' => 0b10000,
-            b'C' => 0b01000,
-            b'G' => 0b00100,
-            b'T' => 0b00010,
-            b'U' => 0b00010,
-            b'N' | b'-' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' => {
-                0b00001
-            }
+            b'A' | b'a' => 0b10000,
+            b'C' | b'c' => 0b01000,
+            b'G' | b'g' => 0b00100,
+            b'T' | b't' | b'U' | b'u' => 0b00010,
+            b'N' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' | b'-'
+            | b'n' | b'w' | b's' | b'm' | b'k' | b'r' | b'y' | b'b' | b'd' | b'h' | b'v' => 0b00001,
             _ => 0,
         };
         lut[i] = b;
