@@ -2,6 +2,7 @@ use needletail::parse_fastx_file;
 
 use std::collections::HashSet;
 use std::error::Error;
+use std::path::Path;
 use std::time::Instant;
 
 use log::debug;
@@ -13,7 +14,7 @@ use crate::get_hit_sequence;
 use crate::WindowSet;
 
 pub fn cluster(
-    input_fasta: &str,
+    input_fasta: &Path,
     max_divergence: u32,
     print_stream: &mut dyn std::io::Write,
 ) -> Result<(), Box<dyn Error>> {
@@ -109,7 +110,7 @@ mod tests {
     #[test]
     fn test_simple() {
         let mut stream = Cursor::new(Vec::new());
-        cluster("tests/data/cluster_dummy1.fna", 1, &mut stream).unwrap();
+        cluster(Path::new("tests/data/cluster_dummy1.fna"), 1, &mut stream).unwrap();
         assert_eq!(
             "ATGC\tATGC
 ATGG\tATGC
@@ -122,7 +123,7 @@ AAAA\tAAAA
     #[test]
     fn test_bug1() {
         let mut stream = Cursor::new(Vec::new());
-        cluster("tests/data/cluster_bug1.fna", 2, &mut stream).unwrap();
+        cluster(Path::new("tests/data/cluster_bug1.fna"), 2, &mut stream).unwrap();
         assert_eq!(
             "ATGCAAAAA\tATGCAAAAA\n\
              ATAAAAAAA\tATGCAAAAA\n\
@@ -136,7 +137,12 @@ AAAA\tAAAA
         // seq4 in the file shouldn't be reported otherwise there are two
         // sequences that are the same but are given different centroids.
         let mut stream = Cursor::new(Vec::new());
-        cluster("tests/data/cluster_best_hit_changes.fna", 2, &mut stream).unwrap();
+        cluster(
+            Path::new("tests/data/cluster_best_hit_changes.fna"),
+            2,
+            &mut stream,
+        )
+        .unwrap();
         assert_eq!(
             "ATGCAAAAA\tATGCAAAAA\n\
              ATAAAAAAA\tATGCAAAAA\n\

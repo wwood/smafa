@@ -2,6 +2,7 @@ use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
 
 use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::{error::Error, fs::File};
 
@@ -19,12 +20,12 @@ struct WindowSet {
     windows: Vec<Vec<bool>>,
 }
 
-pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>> {
     // Iterate over lines, creating a vector of bools by one hot encoding
     // the input.
 
     // Open the query file as a fasta file.
-    debug!("Opening subject fasta file: {}", subject_fasta);
+    debug!("Opening subject fasta file: {:?}", subject_fasta);
     let mut subject_reader =
         parse_fastx_file(subject_fasta).expect("valid path/file of subject fasta");
 
@@ -47,7 +48,7 @@ pub fn makedb(subject_fasta: &str, db_path: &str) -> Result<(), Box<dyn Error>> 
     info!(
         "Encoding of {} sequences complete, writing db file {}",
         windows.windows.len(),
-        db_path
+        db_path.to_string_lossy()
     );
 
     // Encode
@@ -75,7 +76,7 @@ fn encode_single(c: u8) -> [bool; 5] {
     }
 }
 
-fn get_hit_sequence(hit_bools: &Vec<bool>) -> String {
+fn get_hit_sequence(hit_bools: &[bool]) -> String {
     let mut s = String::new();
     for j in 0..hit_bools.len() / 5 {
         let slice = &hit_bools[j * 5..(j + 1) * 5];
@@ -94,14 +95,14 @@ fn get_hit_sequence(hit_bools: &Vec<bool>) -> String {
 }
 
 pub fn query(
-    db_path: &str,
-    query_fasta: &str,
+    db_path: &Path,
+    query_fasta: &Path,
     max_divergence: Option<u32>,
     max_num_hits: Option<u32>,
     limit_per_sequence: Option<u32>,
 ) -> Result<(), Box<dyn Error>> {
     // Decode
-    info!("Decoding db file {}", db_path);
+    info!("Decoding db file {:?}", db_path);
     let start = Instant::now();
     let mut ferris_file = File::open(db_path)?;
     let mut buffer = Vec::new();
@@ -234,6 +235,8 @@ fn get_distances(windows: &WindowSet, query_vec: &[bool], distances: &mut [usize
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -241,12 +244,11 @@ mod tests {
         // Create a temporary directory to store the test DB file.
         let temp_dir = tempfile::tempdir().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let db_path_str = db_path.to_str().unwrap();
-        let subject_fasta = "tests/data/subjects.fa";
+        let subject_fasta = std::path::PathBuf::from_str("tests/data/subjects.fa").unwrap();
 
         // Call the makedb function with the test subject FASTA file and the path
         // to the test DB file.
-        assert!(makedb(subject_fasta, db_path_str).is_ok());
+        assert!(makedb(&subject_fasta, &db_path).is_ok());
 
         // Check that the DB file exists.
         assert!(db_path.exists());
@@ -275,15 +277,15 @@ mod tests {
 // Derive IntoJson
 #[derive(Serialize, Deserialize, Debug)]
 struct CountResult {
-    path: String,
+    path: PathBuf,
     num_reads: usize,
     num_bases: usize,
 }
 
-pub fn count(paths: &Vec<&String>) -> Result<(), Box<dyn Error>> {
+pub fn count<T: Iterator<Item = P>, P: AsRef<Path>>(paths: T) -> Result<(), Box<dyn Error>> {
     let mut results = Vec::new();
     for path in paths {
-        let mut reader = parse_fastx_file(path)?;
+        let mut reader = parse_fastx_file(&path)?;
         let mut read_count = 0;
         let mut bases_count = 0;
         while let Some(record) = reader.next() {
@@ -292,7 +294,7 @@ pub fn count(paths: &Vec<&String>) -> Result<(), Box<dyn Error>> {
             bases_count += record.seq().len();
         }
         results.push(CountResult {
-            path: path.to_string(),
+            path: path.as_ref().to_owned(),
             num_reads: read_count,
             num_bases: bases_count,
         });
