@@ -58,22 +58,40 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
+const fn create_lut() -> [u8; 256] {
+    let mut lut = [0; 256];
+    let mut i = 0;
+    while i < 256 {
+        let b = match i as u8 {
+            b'A' => 0b10000,
+            b'C' => 0b01000,
+            b'G' => 0b00100,
+            b'T' => 0b00010,
+            b'U' => 0b00010,
+            b'N' | b'-' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' => {
+                0b00001
+            }
+            _ => 0,
+        };
+        lut[i] = b;
+        i += 1;
+    }
+    lut
+}
+
+const BYTE_LUT: [u8; 256] = create_lut();
+
 // inline this function, performance affects untested, guessing it's better
 #[inline(always)]
 fn encode_single(c: u8) -> u8 {
-    match c {
-        b'A' => 0b10000,
-        b'C' => 0b01000,
-        b'G' => 0b00100,
-        b'T' => 0b00010,
-        b'U' => 0b00010,
-        b'N' | b'-' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' => {
-            0b00001
-        }
-        _ => {
-            panic!("Invalid character in query sequence: {c}")
-        }
+    let lut: [u8; 256] = BYTE_LUT; // statically verify lut has 256 elements
+
+    // Safety: We just verified it has indices 0-255, so a u8 can't be out of bounds
+    let encoding = unsafe { *lut.get_unchecked(c as usize) };
+    if encoding == 0 {
+        panic!("Invalid character in query sequence: {c}")
     }
+    encoding
 }
 
 fn get_hit_sequence(hit_bytes: &[u8]) -> String {
