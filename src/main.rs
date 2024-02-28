@@ -3,6 +3,7 @@ use bird_tool_utils::clap_utils::set_log_level as set_log_level_bird_tool_utils;
 use clap::*;
 
 use std::env;
+use std::path::PathBuf;
 
 use smafa::*;
 
@@ -15,8 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("query") => {
             let m = matches.subcommand_matches("query").unwrap();
             set_log_level(m, true);
-            let db_root = m.get_one::<String>("database").unwrap();
-            let query_fasta = m.get_one::<String>("query").unwrap();
+            let db_root = m.get_one::<PathBuf>("database").unwrap();
+            let query_fasta = m.get_one::<PathBuf>("query").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence");
             let max_num_hits = m.get_one::<u32>("max-num-hits");
             let limit_per_sequence = m.get_one::<u32>("limit-per-sequence");
@@ -31,22 +32,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("makedb") => {
             let m = matches.subcommand_matches("makedb").unwrap();
             set_log_level(m, true);
-            let subject_fasta = m.get_one::<String>("input").unwrap();
-            let database = m.get_one::<String>("database").unwrap();
+            let subject_fasta = m.get_one::<PathBuf>("input").unwrap();
+            let database = m.get_one::<PathBuf>("database").unwrap();
             smafa::makedb(subject_fasta, database)
         }
         Some("cluster") => {
             let m = matches.subcommand_matches("cluster").unwrap();
             set_log_level(m, true);
-            let input_fasta = m.get_one::<String>("input").unwrap();
+            let input_fasta = m.get_one::<PathBuf>("input").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
             smafa::cluster(input_fasta, *max_divergence, &mut std::io::stdout())
         }
         Some("count") => {
             let m = matches.subcommand_matches("count").unwrap();
             set_log_level(m, true);
-            let fastx_files = m.get_many::<String>("input").unwrap().collect();
-            smafa::count(&fastx_files)
+            let fastx_files = m.get_many::<PathBuf>("input").unwrap().collect::<Vec<_>>();
+            smafa::count(fastx_files.iter())
         }
         _ => {
             app.print_help().unwrap();
@@ -68,8 +69,8 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("makedb")
                 .about("Generate a searchable database")
-                .arg(arg!(-i --input <FILE> "Subject sequences to search against"))
-                .arg(arg!(-d --database <FILE> "Output DB filename")),
+                .arg(arg!(-i --input <FILE> "Subject sequences to search against").value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-d --database <FILE> "Output DB filename").value_parser(value_parser!(PathBuf)))
         ))
         .subcommand(add_clap_verbosity_flags(
             Command::new("query")
@@ -80,8 +81,8 @@ fn build_cli() -> Command {
                 2. Subject sequence number (0-indexed)\n\
                 3. Divergence (number of nucleotides different between the two sequences\n\
                 4. Subject sequence (with dashes and degenerate base symbols shown as Ns)")
-                .arg(arg!(-d --database <FILE> "Output from makedb [required]"))
-                .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]"))
+                .arg(arg!(-d --database <FILE> "Output from makedb [required]").value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]").value_parser(value_parser!(PathBuf)))
                 .arg(
                     arg!( --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
@@ -98,7 +99,7 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("cluster")
                 .about("Cluster sequences by similarity")
-                .arg(arg!(-i --input <FILE> "FASTA file to cluster"))
+                .arg(arg!(-i --input <FILE> "FASTA file to cluster").value_parser(value_parser!(PathBuf)))
                 .arg(
                     arg!(-d --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
@@ -107,7 +108,7 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("count")
                 .about("Print the number of reads/bases in a possibly gzipped FASTX file")
-                .arg(arg!(-i --input <FILE> "FASTQ file to count")
+                .arg(arg!(-i --input <FILE> "FASTQ file to count").value_parser(value_parser!(PathBuf))
                 // allow multipl
                 .num_args(0..)
             ),
