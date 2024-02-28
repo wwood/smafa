@@ -221,14 +221,12 @@ pub fn query(
 }
 
 fn get_distances(windows: &WindowSet, query_vec: &[u8], distances: &mut [usize]) {
-    for (i, window) in windows.windows.iter().enumerate() {
-        let mut distance = 0;
-        for (&bit, &q) in window.iter().zip(query_vec.iter()) {
-            if bit != q {
-                distance += 1;
-            }
-        }
-        distances[i] = distance;
+    for (window, distance) in windows.windows.iter().zip(distances.iter_mut()) {
+        *distance = window
+            .iter()
+            .zip(query_vec.iter())
+            .map(|(a, b)| (a != b) as usize)
+            .sum()
     }
 }
 
