@@ -17,12 +17,12 @@ pub const AUTHOR_AND_EMAIL: &str =
 #[derive(Serialize, Deserialize, Debug)]
 struct WindowSet {
     version: u32,
-    windows: Vec<Vec<bool>>,
+    windows: Vec<Vec<u8>>,
 }
 
 pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>> {
-    // Iterate over lines, creating a vector of bools by one hot encoding
-    // the input.
+    // Iterate over lines, creating a vector of u8, where the lowest 5 bits of the u8
+    // are the input nucleotides, one-hot encoded
 
     // Open the query file as a fasta file.
     debug!("Opening subject fasta file: {:?}", subject_fasta);
@@ -36,7 +36,7 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
         let encoded1 = record
             .seq()
             .iter()
-            .flat_map(|c| encode_single(*c))
+            .map(|c| encode_single(*c))
             .collect::<Vec<_>>();
         encoded.push(encoded1);
     }
@@ -60,15 +60,15 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
 
 // inline this function, performance affects untested, guessing it's better
 #[inline(always)]
-fn encode_single(c: u8) -> [bool; 5] {
+fn encode_single(c: u8) -> u8 {
     match c {
-        b'A' => [true, false, false, false, false],
-        b'C' => [false, true, false, false, false],
-        b'G' => [false, false, true, false, false],
-        b'T' => [false, false, false, true, false],
-        b'U' => [false, false, false, true, false],
+        b'A' => 0b10000,
+        b'C' => 0b01000,
+        b'G' => 0b00100,
+        b'T' => 0b00010,
+        b'U' => 0b00010,
         b'N' | b'-' | b'W' | b'S' | b'M' | b'K' | b'R' | b'Y' | b'B' | b'D' | b'H' | b'V' => {
-            [false, false, false, false, true]
+            0b00001
         }
         _ => {
             panic!("Invalid character in query sequence: {c}")
@@ -76,22 +76,22 @@ fn encode_single(c: u8) -> [bool; 5] {
     }
 }
 
-fn get_hit_sequence(hit_bools: &[bool]) -> String {
-    let mut s = String::new();
-    for j in 0..hit_bools.len() / 5 {
-        let slice = &hit_bools[j * 5..(j + 1) * 5];
-        s.push(match slice {
-            [true, false, false, false, false] => 'A',
-            [false, true, false, false, false] => 'C',
-            [false, false, true, false, false] => 'G',
-            [false, false, false, true, false] => 'T',
-            [false, false, false, false, true] => 'N',
+fn get_hit_sequence(hit_bytes: &[u8]) -> String {
+    let v: Vec<_> = hit_bytes
+        .iter()
+        .map(|&b| match b {
+            0b10000 => b'A',
+            0b01000 => b'C',
+            0b00100 => b'G',
+            0b00010 => b'T',
+            0b00001 => b'N',
             _ => {
-                panic!("Invalid character in query sequence: {slice:?}")
+                panic!("Invalid character in query sequence: {b}")
             }
-        });
-    }
-    s
+        })
+        .collect();
+    // Safety: All the bytes above are ASCII, so it will never fail
+    unsafe { String::from_utf8_unchecked(v) }
 }
 
 pub fn query(
@@ -127,7 +127,7 @@ pub fn query(
             .expect("Failed to parse query sequence")
             .seq()
             .iter()
-            .flat_map(|c| encode_single(*c))
+            .map(|c| encode_single(*c))
             .collect::<Vec<_>>();
 
         // Get the minimum distance between the query and each window using xor.
@@ -157,7 +157,7 @@ pub fn query(
                 for (distance, i) in min_distances.iter() {
                     if *distance <= max_distance
                         && (max_divergence.is_none()
-                            || *distance / 2 <= max_divergence.unwrap() as usize)
+                            || *distance <= max_divergence.unwrap() as usize)
                     {
                         let s = get_hit_sequence(&windows.windows[*i]);
                         debug!("Found hit sequence {} at distance {}", s, distance);
@@ -185,7 +185,7 @@ pub fn query(
                         }
 
                         // Print the window if we make it here.
-                        println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
+                        println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
                     }
                 }
             }
@@ -199,12 +199,11 @@ pub fn query(
                 }
 
                 // Print the windows with the minimum distance.
-                if max_divergence.is_none() || min_distance / 2 <= max_divergence.unwrap() as usize
-                {
+                if max_divergence.is_none() || *min_distance <= max_divergence.unwrap() as usize {
                     for (i, distance) in distances.iter().enumerate() {
                         if distance == min_distance {
                             let s = get_hit_sequence(&windows.windows[i]);
-                            println!("{}\t{}\t{}\t{}", query_number, i, distance / 2, s);
+                            println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
                         }
                     }
                 }
@@ -221,7 +220,7 @@ pub fn query(
     Ok(())
 }
 
-fn get_distances(windows: &WindowSet, query_vec: &[bool], distances: &mut [usize]) {
+fn get_distances(windows: &WindowSet, query_vec: &[u8], distances: &mut [usize]) {
     for (i, window) in windows.windows.iter().enumerate() {
         let mut distance = 0;
         for (&bit, &q) in window.iter().zip(query_vec.iter()) {
@@ -264,11 +263,11 @@ mod tests {
 
         // Check that the first sequence has the expected one-hot encoded values.
         let expected_encoded = vec![
-            vec![true, false, false, false, false],
-            vec![false, true, false, false, false],
-            vec![false, false, true, false, false],
-            vec![false, false, false, true, false],
-            vec![false, false, false, false, true],
+            vec![0b10000],
+            vec![0b01000],
+            vec![0b00100],
+            vec![0b00010],
+            vec![0b00001],
         ];
         assert_eq!(windows.windows, expected_encoded);
     }

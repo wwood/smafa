@@ -27,7 +27,7 @@ pub fn cluster(
         windows: Vec::new(),
     };
 
-    let mut seen_sequences = HashSet::<Vec<bool>>::new();
+    let mut seen_sequences = HashSet::<Vec<u8>>::new();
 
     // Iterate input sequences
     // Open the query file as a fasta file.
@@ -44,10 +44,7 @@ pub fn cluster(
         // Encode as vec of bools
         let record_unwrapped = record.expect("Failed to parse input sequence");
         let seq = record_unwrapped.seq();
-        let query_vec = seq
-            .iter()
-            .flat_map(|c| encode_single(*c))
-            .collect::<Vec<_>>();
+        let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
 
         // Skip if sequence has already been seen
         if seen_sequences.contains(&query_vec) {
@@ -68,7 +65,7 @@ pub fn cluster(
 
         // If distance < max_divergence then add to centroid
         let mut assigned_centroid = 0;
-        if min_distance / 2 <= max_divergence_usize {
+        if min_distance <= max_divergence_usize {
             for (i, distance) in distances.iter().enumerate() {
                 if *distance == min_distance {
                     assigned_centroid = i;
