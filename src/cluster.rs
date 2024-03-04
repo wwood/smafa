@@ -8,10 +8,7 @@ use std::time::Instant;
 use log::debug;
 use log::info;
 
-use crate::build_encoding_from_seq;
-use crate::get_distances;
-use crate::get_hit_sequence;
-use crate::WindowSet;
+use crate::{SeqEncoding, WindowSet};
 
 pub fn cluster(
     input_fasta: &Path,
@@ -45,16 +42,16 @@ pub fn cluster(
         let record_unwrapped = record.expect("Failed to parse input sequence");
         let seq = record_unwrapped.seq();
         //let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
-        let query_vec = build_encoding_from_seq(record_unwrapped.id(), &record_unwrapped.seq());
+        let query_vec = SeqEncoding::from_bytes(record_unwrapped.id(), &record_unwrapped.seq());
         // Skip if sequence has already been seen
-        if seen_sequences.contains(&query_vec) {
+        if seen_sequences.contains(&query_vec.0) {
             continue;
         } else {
-            seen_sequences.insert(query_vec.clone());
+            seen_sequences.insert(query_vec.0.clone());
         }
 
         // Get distances
-        get_distances(&centroids, &query_vec, &mut distances);
+        centroids.get_distances(&query_vec, &mut distances);
 
         // Find min distance and index of it
         let min_distance = if distances.is_empty() {
@@ -75,7 +72,7 @@ pub fn cluster(
         } else {
             // If distance >= max_divergence then add to new centroid
             assigned_centroid = centroids.windows.len();
-            centroids.windows.push(query_vec.to_vec());
+            centroids.windows.push(query_vec.clone());
             distances.push(0); // Adding another entry so that distances.len() == centroids.windows.len()
         }
         debug!("Assigned centroid: {}", assigned_centroid);
@@ -86,7 +83,7 @@ pub fn cluster(
             print_stream,
             "{}\t{}",
             std::str::from_utf8(&seq).unwrap(),
-            get_hit_sequence(&centroids.windows[assigned_centroid])
+            centroids.windows[assigned_centroid].as_string()
         )?;
     }
 
