@@ -15,10 +15,68 @@ pub use cluster::cluster;
 pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct SeqEncoding(Vec<u8>);
+
+impl SeqEncoding {
+    fn from_bytes(identifier: &[u8], seq: &[u8]) -> Self {
+        let v = seq.iter()
+            .enumerate()
+            .map(|(i, &b)| {
+                encode_single(b)
+                    .unwrap_or_else(|| {
+                        let seqname = String::from_utf8_lossy(identifier);
+                        panic!(
+                            "Byte {} cannot be interpreted as nucleotide, in sequence \"{}\" at position {}",
+                            b, seqname, i
+                        )
+                    })
+                    .get()
+            })
+            .collect();
+        Self(v)
+    }
+
+    fn as_string(&self) -> String {
+        let v: Vec<_> = self
+            .0
+            .iter()
+            .map(|&b| match b {
+                0b10000 => b'A',
+                0b01000 => b'C',
+                0b00100 => b'G',
+                0b00010 => b'T',
+                0b00001 => b'N',
+                _ => {
+                    panic!("Invalid character in query sequence: {b}")
+                }
+            })
+            .collect();
+        // Safety: All the bytes above are ASCII, so it will never fail
+        unsafe { String::from_utf8_unchecked(v) }
+    }
+
+    fn get_distance(&self, other: &SeqEncoding) -> usize {
+        self.0
+            .iter()
+            .zip(other.0.iter())
+            .map(|(a, b)| (a != b) as usize)
+            .sum()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct WindowSet {
     version: u32,
-    windows: Vec<Vec<u8>>,
+    windows: Vec<SeqEncoding>,
+}
+
+impl WindowSet {
+    fn get_distances(&self, seq: &SeqEncoding, distances: &mut [usize]) {
+        for (window, distance) in self.windows.iter().zip(distances.iter_mut()) {
+            *distance = window.get_distance(seq)
+        }
+    }
 }
 
 pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>> {
@@ -34,7 +92,7 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
     info!("Encoding subject sequences ..");
     while let Some(record) = subject_reader.next() {
         let record = record.expect("valid record");
-        let encoded1 = build_encoding_from_seq(record.id(), &record.seq());
+        let encoded1 = SeqEncoding::from_bytes(record.id(), &record.seq());
         encoded.push(encoded1);
     }
 
@@ -86,41 +144,6 @@ fn encode_single(c: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(encoding)
 }
 
-fn build_encoding_from_seq(identifier: &[u8], seq: &[u8]) -> Vec<u8> {
-    seq.iter()
-        .enumerate()
-        .map(|(i, &b)| {
-            encode_single(b)
-                .unwrap_or_else(|| {
-                    let seqname = String::from_utf8_lossy(identifier);
-                    panic!(
-                        "Byte {} cannot be interpreted as nucleotide, in sequence \"{}\" at position {}",
-                        b, seqname, i
-                    )
-                })
-                .get()
-        })
-        .collect()
-}
-
-fn get_hit_sequence(hit_bytes: &[u8]) -> String {
-    let v: Vec<_> = hit_bytes
-        .iter()
-        .map(|&b| match b {
-            0b10000 => b'A',
-            0b01000 => b'C',
-            0b00100 => b'G',
-            0b00010 => b'T',
-            0b00001 => b'N',
-            _ => {
-                panic!("Invalid character in query sequence: {b}")
-            }
-        })
-        .collect();
-    // Safety: All the bytes above are ASCII, so it will never fail
-    unsafe { String::from_utf8_unchecked(v) }
-}
-
 pub fn query(
     db_path: &Path,
     query_fasta: &Path,
@@ -151,10 +174,10 @@ pub fn query(
     while let Some(record) = query_reader.next() {
         // encode a line from stdin as a vector of bools
         let record = record.expect("Failed to parse query sequence");
-        let query_vec = build_encoding_from_seq(record.id(), &record.seq());
+        let query_vec = SeqEncoding::from_bytes(record.id(), &record.seq());
 
         // Get the minimum distance between the query and each window using xor.
-        get_distances(&windows, &query_vec, &mut distances);
+        windows.get_distances(&query_vec, &mut distances);
 
         // Find the max_num_hits'th minimum distance.
         match max_divergence_for_match {
@@ -182,7 +205,7 @@ pub fn query(
                         && (max_divergence.is_none()
                             || *distance <= max_divergence.unwrap() as usize)
                     {
-                        let s = get_hit_sequence(&windows.windows[*i]);
+                        let s = windows.windows[*i].as_string();
                         debug!("Found hit sequence {} at distance {}", s, distance);
 
                         if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
@@ -225,7 +248,7 @@ pub fn query(
                 if max_divergence.is_none() || *min_distance <= max_divergence.unwrap() as usize {
                     for (i, distance) in distances.iter().enumerate() {
                         if distance == min_distance {
-                            let s = get_hit_sequence(&windows.windows[i]);
+                            let s = windows.windows[i].as_string();
                             println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
                         }
                     }
@@ -241,16 +264,6 @@ pub fn query(
         start.elapsed().as_secs()
     );
     Ok(())
-}
-
-fn get_distances(windows: &WindowSet, query_vec: &[u8], distances: &mut [usize]) {
-    for (window, distance) in windows.windows.iter().zip(distances.iter_mut()) {
-        *distance = window
-            .iter()
-            .zip(query_vec.iter())
-            .map(|(a, b)| (a != b) as usize)
-            .sum()
-    }
 }
 
 #[cfg(test)]
@@ -290,7 +303,9 @@ mod tests {
             vec![0b00010],
             vec![0b00001],
         ];
-        assert_eq!(windows.windows, expected_encoded);
+        for (i, j) in expected_encoded.iter().zip(windows.windows.iter()) {
+            assert_eq!(i, &j.0)
+        }
     }
 }
 
