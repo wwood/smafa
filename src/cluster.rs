@@ -24,7 +24,7 @@ pub fn cluster(
         windows: Vec::new(),
     };
 
-    let mut seen_sequences = HashSet::<Vec<u8>>::new();
+    let mut seen_sequences = HashSet::<Vec<u64>>::new();
 
     // Iterate input sequences
     // Open the query file as a fasta file.
@@ -44,10 +44,10 @@ pub fn cluster(
         //let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
         let query_vec = SeqEncoding::from_bytes(record_unwrapped.id(), &record_unwrapped.seq());
         // Skip if sequence has already been seen
-        if seen_sequences.contains(&query_vec.0) {
+        if seen_sequences.contains(&query_vec.encoding) {
             continue;
         } else {
-            seen_sequences.insert(query_vec.0.clone());
+            seen_sequences.insert(query_vec.encoding.clone());
         }
 
         // Get distances
