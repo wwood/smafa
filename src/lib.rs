@@ -16,52 +16,69 @@ pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct SeqEncoding(Vec<u8>);
+struct SeqEncoding {
+    encoding: Vec<u64>,
+    // TODO: Remove len from this struct, and add to WindowSet (assuming) all windows must have same length
+    len: usize,
+}
 
 impl SeqEncoding {
     fn from_bytes(identifier: &[u8], seq: &[u8]) -> Self {
-        let v = seq.iter()
-            .enumerate()
-            .map(|(i, &b)| {
-                encode_single(b)
+        // We encode chunks of 12 nucleotides to a u64
+        let encoding = seq.chunks(12).enumerate().map(|(chunk_num, chunk)| {
+            // The index i here is just to throw a good error message
+            chunk.iter().enumerate().fold(0u64, |acc, (i, &byte)| {
+                let b = encode_single(byte)
                     .unwrap_or_else(|| {
                         let seqname = String::from_utf8_lossy(identifier);
                         panic!(
                             "Byte {} cannot be interpreted as nucleotide, in sequence \"{}\" at position {}",
-                            b, seqname, i
+                            byte, seqname, 12 * chunk_num + i
                         )
                     })
-                    .get()
+                    .get();
+                acc | ((b as u64) << (5 * i))
             })
-            .collect();
-        Self(v)
+        }).collect();
+        Self {
+            encoding,
+            len: seq.len(),
+        }
     }
 
+    // TODO: Could be optimised but whatever
     fn as_string(&self) -> String {
-        let v: Vec<_> = self
-            .0
-            .iter()
-            .map(|&b| match b {
-                0b10000 => b'A',
-                0b01000 => b'C',
-                0b00100 => b'G',
-                0b00010 => b'T',
-                0b00001 => b'N',
-                _ => {
-                    panic!("Invalid character in query sequence: {b}")
+        let v = (0..self.len)
+            .map(|i| {
+                let d = i / 12;
+                let r = i % 12;
+                let b = ((self.encoding[d] >> (5 * r)) & 31) as u8;
+                match b {
+                    0b10000 => b'A',
+                    0b01000 => b'C',
+                    0b00100 => b'G',
+                    0b00010 => b'T',
+                    0b00001 => b'N',
+                    _ => {
+                        panic!("Invalid character in query sequence: {b}")
+                    }
                 }
             })
             .collect();
+
         // Safety: All the bytes above are ASCII, so it will never fail
         unsafe { String::from_utf8_unchecked(v) }
     }
 
+    // TODO: Possibly verify that they are same length?
     fn get_distance(&self, other: &SeqEncoding) -> usize {
-        self.0
+        let d: usize = self
+            .encoding
             .iter()
-            .zip(other.0.iter())
-            .map(|(a, b)| (a != b) as usize)
-            .sum()
+            .zip(other.encoding.iter())
+            .map(|(a, b)| (a ^ b).count_ones() as usize)
+            .sum();
+        d / 2
     }
 }
 
@@ -304,7 +321,7 @@ mod tests {
             vec![0b00001],
         ];
         for (i, j) in expected_encoded.iter().zip(windows.windows.iter()) {
-            assert_eq!(i, &j.0)
+            assert_eq!(i, &j.encoding)
         }
     }
 }
