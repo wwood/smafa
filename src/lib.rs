@@ -2,7 +2,7 @@ use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
 
 use std::io::{Read, Write};
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroUsize};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::{error::Error, fs::File};
@@ -16,13 +16,15 @@ pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct SeqEncoding {
-    encoding: Vec<u64>,
-    // TODO: Remove len from this struct, and add to WindowSet (assuming) all windows must have same length
+struct SeqEncoding(Vec<u64>);
+
+#[derive(Clone)]
+struct SeqEncodingLength {
+    encoding: SeqEncoding,
     len: usize,
 }
 
-impl SeqEncoding {
+impl SeqEncodingLength {
     fn from_bytes(identifier: &[u8], seq: &[u8]) -> Self {
         // We encode chunks of 12 nucleotides to a u64
         let encoding = seq.chunks(12).enumerate().map(|(chunk_num, chunk)| {
@@ -41,18 +43,78 @@ impl SeqEncoding {
             })
         }).collect();
         Self {
-            encoding,
+            encoding: SeqEncoding(encoding),
             len: seq.len(),
         }
     }
+}
 
-    // TODO: Could be optimised but whatever
-    fn as_string(&self) -> String {
-        let v = (0..self.len)
+#[derive(Serialize, Deserialize, Debug)]
+struct WindowSet {
+    version: u32,
+    windows: Vec<SeqEncoding>,
+    // None if there are no windows. Else, they must all be the same size
+    len: Option<NonZeroUsize>,
+}
+
+impl WindowSet {
+    fn new(version: u32) -> Self {
+        WindowSet {
+            version,
+            windows: Vec::new(),
+            len: None,
+        }
+    }
+
+    fn get_distances(&self, seq: &SeqEncodingLength, distances: &mut [usize]) {
+        if let Some(n) = self.len {
+            if n.get() != seq.len {
+                panic!(
+                    "{}",
+                    &format!("Cannot compute distances between seq of length {} and windows of lengths {}", seq.len, n.get())
+                )
+            }
+        }
+        for (window, distance) in self.windows.iter().zip(distances.iter_mut()) {
+            *distance = window
+                .0
+                .iter()
+                .zip(seq.encoding.0.iter())
+                .map(|(a, b)| (a ^ b).count_ones() as usize)
+                .sum::<usize>()
+                / 2
+        }
+    }
+
+    fn push_encoding(&mut self, encoding: SeqEncodingLength) {
+        if let Some(n) = self.len {
+            if n.get() != encoding.len {
+                panic!(
+                    "{}",
+                    &format!(
+                        "WindowSet seq length is {}, got a new sequence of length {}",
+                        n, encoding.len
+                    )
+                )
+            }
+        } else {
+            self.len = Some(
+                encoding
+                    .len
+                    .try_into()
+                    .expect("Cannot add empty sequence to WindowSet"),
+            );
+        }
+        self.windows.push(encoding.encoding)
+    }
+
+    fn get_as_string(&self, index: usize) -> String {
+        let uints = &self.windows[index].0;
+        let v = (0..self.len.map(NonZeroUsize::get).unwrap_or(0))
             .map(|i| {
                 let d = i / 12;
                 let r = i % 12;
-                let b = ((self.encoding[d] >> (5 * r)) & 31) as u8;
+                let b = ((uints[d] >> (5 * r)) & 31) as u8;
                 match b {
                     0b10000 => b'A',
                     0b01000 => b'C',
@@ -65,34 +127,8 @@ impl SeqEncoding {
                 }
             })
             .collect();
-
         // Safety: All the bytes above are ASCII, so it will never fail
         unsafe { String::from_utf8_unchecked(v) }
-    }
-
-    // TODO: Possibly verify that they are same length?
-    fn get_distance(&self, other: &SeqEncoding) -> usize {
-        let d: usize = self
-            .encoding
-            .iter()
-            .zip(other.encoding.iter())
-            .map(|(a, b)| (a ^ b).count_ones() as usize)
-            .sum();
-        d / 2
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct WindowSet {
-    version: u32,
-    windows: Vec<SeqEncoding>,
-}
-
-impl WindowSet {
-    fn get_distances(&self, seq: &SeqEncoding, distances: &mut [usize]) {
-        for (window, distance) in self.windows.iter().zip(distances.iter_mut()) {
-            *distance = window.get_distance(seq)
-        }
     }
 }
 
@@ -105,18 +141,14 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
     let mut subject_reader =
         parse_fastx_file(subject_fasta).expect("valid path/file of subject fasta");
 
-    let mut encoded = Vec::new();
     info!("Encoding subject sequences ..");
+    let mut windows = WindowSet::new(1);
     while let Some(record) = subject_reader.next() {
         let record = record.expect("valid record");
-        let encoded1 = SeqEncoding::from_bytes(record.id(), &record.seq());
-        encoded.push(encoded1);
+        let encoded = SeqEncodingLength::from_bytes(record.id(), &record.seq());
+        windows.push_encoding(encoded);
     }
 
-    let windows = WindowSet {
-        version: 1,
-        windows: encoded,
-    };
     info!(
         "Encoding of {} sequences complete, writing db file {}",
         windows.windows.len(),
@@ -191,7 +223,7 @@ pub fn query(
     while let Some(record) = query_reader.next() {
         // encode a line from stdin as a vector of bools
         let record = record.expect("Failed to parse query sequence");
-        let query_vec = SeqEncoding::from_bytes(record.id(), &record.seq());
+        let query_vec = SeqEncodingLength::from_bytes(record.id(), &record.seq());
 
         // Get the minimum distance between the query and each window using xor.
         windows.get_distances(&query_vec, &mut distances);
@@ -222,7 +254,7 @@ pub fn query(
                         && (max_divergence.is_none()
                             || *distance <= max_divergence.unwrap() as usize)
                     {
-                        let s = windows.windows[*i].as_string();
+                        let s = windows.get_as_string(*i);
                         debug!("Found hit sequence {} at distance {}", s, distance);
 
                         if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
@@ -265,7 +297,7 @@ pub fn query(
                 if max_divergence.is_none() || *min_distance <= max_divergence.unwrap() as usize {
                     for (i, distance) in distances.iter().enumerate() {
                         if distance == min_distance {
-                            let s = windows.windows[i].as_string();
+                            let s = windows.get_as_string(i);
                             println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
                         }
                     }
@@ -321,7 +353,7 @@ mod tests {
             vec![0b00001],
         ];
         for (i, j) in expected_encoded.iter().zip(windows.windows.iter()) {
-            assert_eq!(i, &j.encoding)
+            assert_eq!(i, &j.0)
         }
     }
 }

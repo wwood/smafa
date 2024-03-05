@@ -8,7 +8,7 @@ use std::time::Instant;
 use log::debug;
 use log::info;
 
-use crate::{SeqEncoding, WindowSet};
+use crate::{SeqEncodingLength, WindowSet};
 
 pub fn cluster(
     input_fasta: &Path,
@@ -18,11 +18,8 @@ pub fn cluster(
     let start = Instant::now();
     let max_divergence_usize = max_divergence as usize;
 
-    // Create vec of centroids
-    let mut centroids = WindowSet {
-        version: 0, // not actually used
-        windows: Vec::new(),
-    };
+    // Create vec of centroids - version not used, so zero
+    let mut centroids = WindowSet::new(0);
 
     let mut seen_sequences = HashSet::<Vec<u64>>::new();
 
@@ -42,12 +39,14 @@ pub fn cluster(
         let record_unwrapped = record.expect("Failed to parse input sequence");
         let seq = record_unwrapped.seq();
         //let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
-        let query_vec = SeqEncoding::from_bytes(record_unwrapped.id(), &record_unwrapped.seq());
+        let query_vec =
+            SeqEncodingLength::from_bytes(record_unwrapped.id(), &record_unwrapped.seq());
         // Skip if sequence has already been seen
-        if seen_sequences.contains(&query_vec.encoding) {
+        // TODO: Only hash once here
+        if seen_sequences.contains(&query_vec.encoding.0) {
             continue;
         } else {
-            seen_sequences.insert(query_vec.encoding.clone());
+            seen_sequences.insert(query_vec.encoding.0.clone());
         }
 
         // Get distances
@@ -72,7 +71,7 @@ pub fn cluster(
         } else {
             // If distance >= max_divergence then add to new centroid
             assigned_centroid = centroids.windows.len();
-            centroids.windows.push(query_vec.clone());
+            centroids.push_encoding(query_vec.clone());
             distances.push(0); // Adding another entry so that distances.len() == centroids.windows.len()
         }
         debug!("Assigned centroid: {}", assigned_centroid);
@@ -83,7 +82,7 @@ pub fn cluster(
             print_stream,
             "{}\t{}",
             std::str::from_utf8(&seq).unwrap(),
-            centroids.windows[assigned_centroid].as_string()
+            centroids.get_as_string(assigned_centroid)
         )?;
     }
 
