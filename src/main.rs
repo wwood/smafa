@@ -69,8 +69,8 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("makedb")
                 .about("Generate a searchable database")
-                .arg(arg!(-i --input <FILE> "Subject sequences to search against").value_parser(value_parser!(PathBuf)))
-                .arg(arg!(-d --database <FILE> "Output DB filename").value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-i --input <FILE> "Subject sequences to search against [required]").required(true).value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-d --database <FILE> "Output DB filename [required]").required(true).value_parser(value_parser!(PathBuf)))
         ))
         .subcommand(add_clap_verbosity_flags(
             Command::new("query")
@@ -81,8 +81,8 @@ fn build_cli() -> Command {
                 2. Subject sequence number (0-indexed)\n\
                 3. Divergence (number of nucleotides different between the two sequences\n\
                 4. Subject sequence (with dashes and degenerate base symbols shown as Ns)")
-                .arg(arg!(-d --database <FILE> "Output from makedb [required]").value_parser(value_parser!(PathBuf)))
-                .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]").value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-d --database <FILE> "Output from makedb [required]").required(true).value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-q --query <FILE> "Query sequences to search with in FASTX format [required]").required(true).value_parser(value_parser!(PathBuf)))
                 .arg(
                     arg!( --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
@@ -99,7 +99,7 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("cluster")
                 .about("Cluster sequences by similarity")
-                .arg(arg!(-i --input <FILE> "FASTA file to cluster").value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-i --input <FILE> "FASTA file to cluster [required]").required(true).value_parser(value_parser!(PathBuf)))
                 .arg(
                     arg!(-d --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
@@ -108,7 +108,7 @@ fn build_cli() -> Command {
         .subcommand(add_clap_verbosity_flags(
             Command::new("count")
                 .about("Print the number of reads/bases in a possibly gzipped FASTX file")
-                .arg(arg!(-i --input <FILE> "FASTQ file to count").value_parser(value_parser!(PathBuf))
+                .arg(arg!(-i --input <FILE> "FASTQ file to count [required]").required(true).value_parser(value_parser!(PathBuf))
                 // allow multipl
                 .num_args(0..)
             ),
