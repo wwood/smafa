@@ -213,7 +213,7 @@ pub fn query(
     // support backwards compatibility.
     let version: u32 = postcard::from_bytes(&buffer[0..4])?;
     if version != CURRENT_DB_VERSION {
-        panic!("Unsupported db file version: {}. This version of smafa only works with version {} databases. The last version to support version 1 databases was v0.6.0.", version, CURRENT_DB_VERSION);
+        panic!("Unsupported db file version: {}. This version of smafa only works with version {} databases. The last version to support version 1 databases was v0.7.1.", version, CURRENT_DB_VERSION);
     }
     let windows: WindowSet = postcard::from_bytes(&buffer)?;
 
