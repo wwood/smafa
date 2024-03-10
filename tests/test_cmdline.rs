@@ -25,6 +25,22 @@ mod tests {
     }
 
     #[test]
+    fn test_old_db_version() {
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2.fna.v1.smafadb",
+                "-q",
+                "tests/data/random_3_2.fna",
+            ])
+            .fails()
+            .stderr()
+            .contains("Unsupported db file version: 1.")
+            .unwrap()
+    }
+
+    #[test]
     fn test_degenerate_makedb_and_query() {
         let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
         let t = tf.path().to_str().unwrap();

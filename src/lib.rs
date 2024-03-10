@@ -15,6 +15,8 @@ pub use cluster::cluster;
 pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 
+pub const CURRENT_DB_VERSION: u32 = 2;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SeqEncoding(Vec<u64>);
 
@@ -142,7 +144,7 @@ pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>
         parse_fastx_file(subject_fasta).expect("valid path/file of subject fasta");
 
     info!("Encoding subject sequences ..");
-    let mut windows = WindowSet::new(1);
+    let mut windows = WindowSet::new(CURRENT_DB_VERSION);
     while let Some(record) = subject_reader.next() {
         let record = record.expect("valid record");
         let encoded = SeqEncodingLength::from_bytes(record.id(), &record.seq());
@@ -206,6 +208,13 @@ pub fn query(
     let mut ferris_file = File::open(db_path)?;
     let mut buffer = Vec::new();
     ferris_file.read_to_end(&mut buffer)?;
+
+    // Check that the version of the db file is the most recent. We do not
+    // support backwards compatibility.
+    let version: u32 = postcard::from_bytes(&buffer[0..4])?;
+    if version != CURRENT_DB_VERSION {
+        panic!("Unsupported db file version: {}. This version of smafa only works with version {} databases. The last version to support version 1 databases was v0.6.0.", version, CURRENT_DB_VERSION);
+    }
     let windows: WindowSet = postcard::from_bytes(&buffer)?;
 
     // Open the query file as a fasta file.
