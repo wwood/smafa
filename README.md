@@ -1,6 +1,7 @@
 # A read aligner for aligned sequences
 
-[![Travis](https://img.shields.io/travis/wwood/smafa.svg?style=flat-square)](https://travis-ci.org/wwood/smafa)
+[![Anaconda-Server Badge](https://anaconda.org/bioconda/smafa/badges/version.svg)](https://anaconda.org/bioconda/smafa)
+[![Anaconda-Server Badge](https://anaconda.org/bioconda/smafa/badges/downloads.svg)](https://anaconda.org/bioconda/smafa)
 
 Smafa attempts to align or cluster pre-aligned biological sequences, handling
 sequences which are all the same length. The main use case is through
@@ -8,6 +9,14 @@ sequences which are all the same length. The main use case is through
 independently without issue to search and cluster other pre-aligned sequences.
 
 ## Installation
+
+### Installation through bioconda
+
+If you have [bioconda](https://bioconda.github.io/) installed:
+
+```
+conda install -c bioconda smafa
+```
 
 ### Installation through Cargo
 
