@@ -102,7 +102,7 @@ fn build_cli() -> Command {
                         .value_parser(value_parser!(u32)),
                 )
                 .arg(
-                    arg!(-t --threads <INT> "Number of threads to use [default: 1]")
+                    arg!(-t --threads <INT> "Number of threads to use")
                         .value_parser(value_parser!(usize))
                         .default_value("1"),
                 ),
