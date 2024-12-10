@@ -21,6 +21,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max_divergence = m.get_one::<u32>("max-divergence");
             let max_num_hits = m.get_one::<u32>("max-num-hits");
             let limit_per_sequence = m.get_one::<u32>("limit-per-sequence");
+            let num_threads = *m.get_one::<usize>("threads").unwrap();
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build_global()
+                .expect("Programming error: rayon initialised multiple times");
+
             smafa::query(
                 db_root,
                 query_fasta,
@@ -94,6 +100,11 @@ fn build_cli() -> Command {
                 .arg(
                     arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence. Requires --max-num-hits > 1 for now. [default: not used]")
                         .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!(-t --threads <INT> "Number of threads to use [default: 1]")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1"),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(

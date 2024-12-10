@@ -16,7 +16,15 @@ mod tests {
             .unwrap();
 
         Assert::main_binary()
-            .with_args(&["query", "-d", t, "-q", "tests/data/random_3_2.fna"])
+            .with_args(&[
+                "query",
+                "-d",
+                t,
+                "-q",
+                "tests/data/random_3_2.fna",
+                "-t",
+                "1",
+            ])
             .succeeds()
             .stdout()
             .is("0	0	0	CTT\n\

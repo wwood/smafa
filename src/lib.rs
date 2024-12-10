@@ -1,4 +1,5 @@
 use needletail::parse_fastx_file;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use std::io::{Read, Write};
@@ -195,6 +196,11 @@ fn encode_single(c: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(encoding)
 }
 
+struct Record {
+    id: Vec<u8>,
+    seq: Vec<u8>,
+}
+
 pub fn query(
     db_path: &Path,
     query_fasta: &Path,
@@ -223,16 +229,22 @@ pub fn query(
     // 1 is a special case, it is equivalent to None.
     let max_divergence_for_match = max_num_hits.filter(|&max_num_hits| max_num_hits != 1);
 
-    // Pre-initialise the distances vector so don't have to continually reallocate.
-    let mut distances = vec![0; windows.windows.len()];
+    // Collect all records into a vector
+    let mut records = Vec::new();
+    while let Some(record) = query_reader.next() {
+        let seqrec = record.expect("Failed to parse query sequence");
+        records.push(Record {
+            id: seqrec.id().to_vec(),
+            seq: seqrec.seq().to_vec(),
+        });
+    }
 
     // Iterate over the query file.
     info!("Querying ..");
-    let mut query_number: u32 = 0;
-    while let Some(record) = query_reader.next() {
+    records.par_iter().enumerate().for_each(|(query_number, record)| {
         // encode a line from stdin as a vector of bools
-        let record = record.expect("Failed to parse query sequence");
-        let query_vec = SeqEncodingLength::from_bytes(record.id(), &record.seq());
+        let query_vec = SeqEncodingLength::from_bytes(&record.id, &record.seq);
+        let mut distances = vec![0; windows.windows.len()];
 
         // Get the minimum distance between the query and each window using xor.
         windows.get_distances(&query_vec, &mut distances);
@@ -313,9 +325,7 @@ pub fn query(
                 }
             }
         }
-
-        query_number += 1;
-    }
+    });
 
     info!(
         "Querying complete, took {} seconds",
