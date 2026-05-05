@@ -219,7 +219,7 @@ pub fn query(
     // support backwards compatibility.
     let version: u32 = postcard::from_bytes(&buffer[0..4])?;
     if version != CURRENT_DB_VERSION {
-        panic!("Unsupported db file version: {}. This version of smafa only works with version {} databases. The last version to support version 1 databases was v0.7.1.", version, CURRENT_DB_VERSION);
+        panic!("Unsupported db file version: {version}. This version of smafa only works with version {CURRENT_DB_VERSION} databases. The last version to support version 1 databases was v0.7.1.");
     }
     let windows: WindowSet = postcard::from_bytes(&buffer)?;
 
@@ -301,7 +301,7 @@ pub fn query(
                         }
 
                         // Print the window if we make it here.
-                        println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                        println!("{query_number}\t{i}\t{distance}\t{s}");
                     }
                 }
             }
@@ -319,7 +319,7 @@ pub fn query(
                     for (i, distance) in distances.iter().enumerate() {
                         if distance == min_distance {
                             let s = windows.get_as_string(i);
-                            println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                            println!("{query_number}\t{i}\t{distance}\t{s}");
                         }
                     }
                 }

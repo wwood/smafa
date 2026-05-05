@@ -254,6 +254,39 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_query_multithreaded() {
+        let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        let t = tf.path().to_str().unwrap();
+        Assert::main_binary()
+            .with_args(&["makedb", "-i", "tests/data/degenerate.fna", "-d", t])
+            .succeeds()
+            .unwrap();
+
+        // With multiple threads, output order is non-deterministic, so check each
+        // expected line is present rather than asserting an exact ordering.
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                t,
+                "-q",
+                "tests/data/degenerate.fna",
+                "--max-num-hits",
+                "1",
+                "-t",
+                "4",
+            ])
+            .succeeds()
+            .stdout()
+            .contains("0\t0\t0\tCTTNGG")
+            .stdout()
+            .contains("1\t1\t0\tAGGTGA")
+            .stdout()
+            .contains("2\t2\t0\tNACTTT")
+            .unwrap()
+    }
+
     // #[test]
     // fn test_db_version_incompatibility(){
     //     Assert::main_binary()
