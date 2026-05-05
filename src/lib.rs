@@ -281,19 +281,15 @@ pub fn query(
                         if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
                             // limit per sequence
                             match &last_sequence {
-                                Some((last_seq, last_seq_count)) => {
-                                    if last_seq == &s {
-                                        if last_seq_count >= &limit_per_sequence_unwrapped {
-                                            continue;
-                                        } else {
-                                            new_last_sequence =
-                                                Some((s.clone(), last_seq_count + 1));
-                                        }
+                                Some((last_seq, last_seq_count)) if last_seq == &s => {
+                                    if last_seq_count >= &limit_per_sequence_unwrapped {
+                                        continue;
                                     } else {
-                                        new_last_sequence = Some((s.clone(), 1));
+                                        new_last_sequence =
+                                            Some((s.clone(), last_seq_count + 1));
                                     }
                                 }
-                                None => {
+                                _ => {
                                     new_last_sequence = Some((s.clone(), 1));
                                 }
                             }
