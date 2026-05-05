@@ -279,11 +279,34 @@ mod tests {
             ])
             .succeeds()
             .stdout()
-            .contains("0\t0\t0\tCTTNGG")
+            .is("0	0	0	CTTNGG\n\
+                1	1	0	AGGTGA\n\
+                2	2	0	NACTTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_multithreaded_with_repeated_sequence() {
+        // Uses a pre-built db containing CTT, AGG, AGG (one repeated entry).
+        // Queries the same file with 2 threads; verifies that output is in
+        // deterministic input order despite parallel execution.
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2_one_repeated.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2_one_repeated.fna",
+                "-t",
+                "2",
+            ])
+            .succeeds()
             .stdout()
-            .contains("1\t1\t0\tAGGTGA")
-            .stdout()
-            .contains("2\t2\t0\tNACTTT")
+            .is("0	0	0	CTT\n\
+                1	1	0	AGG\n\
+                1	2	0	AGG\n\
+                2	1	0	AGG\n\
+                2	2	0	AGG\n")
             .unwrap()
     }
 
