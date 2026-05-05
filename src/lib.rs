@@ -89,6 +89,32 @@ impl WindowSet {
         }
     }
 
+    // Parallel version of get_distances: computes and returns a fresh Vec.
+    // Use this when the outer loop is sequential (e.g. cluster) so rayon can
+    // exploit multiple threads on the inner distance computation.
+    fn compute_distances_par(&self, seq: &SeqEncodingLength) -> Vec<usize> {
+        if let Some(n) = self.len {
+            if n.get() != seq.len {
+                panic!(
+                    "{}",
+                    &format!("Cannot compute distances between seq of length {} and windows of lengths {}", seq.len, n.get())
+                )
+            }
+        }
+        self.windows
+            .par_iter()
+            .map(|window| {
+                window
+                    .0
+                    .iter()
+                    .zip(seq.encoding.0.iter())
+                    .map(|(a, b)| (a ^ b).count_ones() as usize)
+                    .sum::<usize>()
+                    / 2
+            })
+            .collect()
+    }
+
     fn push_encoding(&mut self, encoding: SeqEncodingLength) {
         if let Some(n) = self.len {
             if n.get() != encoding.len {

@@ -27,9 +27,6 @@ pub fn cluster(
     // Open the query file as a fasta file.
     let mut query_reader = parse_fastx_file(input_fasta).expect("valid path/file of input fasta");
 
-    // Pre-initialise the distances vector so don't have to continually reallocate.
-    let mut distances = vec![];
-
     info!("Clustering ..");
     let mut query_number: u32 = 0;
     while let Some(record) = query_reader.next() {
@@ -38,7 +35,6 @@ pub fn cluster(
         // Encode as vec of bools
         let record_unwrapped = record.expect("Failed to parse input sequence");
         let seq = record_unwrapped.seq();
-        //let query_vec = seq.iter().map(|c| encode_single(*c)).collect::<Vec<_>>();
         let query_vec =
             SeqEncodingLength::from_bytes(record_unwrapped.id(), &record_unwrapped.seq());
 
@@ -47,8 +43,8 @@ pub fn cluster(
             continue;
         }
 
-        // Get distances
-        centroids.get_distances(&query_vec, &mut distances);
+        // Get distances to all current centroids in parallel.
+        let distances = centroids.compute_distances_par(&query_vec);
 
         // Find min distance and index of it
         let min_distance = if distances.is_empty() {
@@ -70,7 +66,6 @@ pub fn cluster(
             // If distance >= max_divergence then add to new centroid
             assigned_centroid = centroids.windows.len();
             centroids.push_encoding(query_vec);
-            distances.push(0); // Adding another entry so that distances.len() == centroids.windows.len()
         }
         debug!("Assigned centroid: {}", assigned_centroid);
         debug!("windows len: {}", centroids.windows.len());
