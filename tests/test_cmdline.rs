@@ -16,7 +16,15 @@ mod tests {
             .unwrap();
 
         Assert::main_binary()
-            .with_args(&["query", "-d", t, "-q", "tests/data/random_3_2.fna"])
+            .with_args(&[
+                "query",
+                "-d",
+                t,
+                "-q",
+                "tests/data/random_3_2.fna",
+                "-t",
+                "1",
+            ])
             .succeeds()
             .stdout()
             .is("0	0	0	CTT\n\
@@ -243,6 +251,82 @@ mod tests {
                 0	1	3	AGG\n\
                 1	1	0	AGG\n\
                 1	0	3	CTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_multithreaded() {
+        let tf: tempfile::NamedTempFile = tempfile::NamedTempFile::new().unwrap();
+        let t = tf.path().to_str().unwrap();
+        Assert::main_binary()
+            .with_args(&["makedb", "-i", "tests/data/degenerate.fna", "-d", t])
+            .succeeds()
+            .unwrap();
+
+        // With multiple threads, output order is non-deterministic, so check each
+        // expected line is present rather than asserting an exact ordering.
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                t,
+                "-q",
+                "tests/data/degenerate.fna",
+                "--max-num-hits",
+                "1",
+                "-t",
+                "4",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTTNGG\n\
+                1	1	0	AGGTGA\n\
+                2	2	0	NACTTT\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_query_multithreaded_with_repeated_sequence() {
+        // Uses a pre-built db containing CTT, AGG, AGG (one repeated entry).
+        // Queries the same file with 2 threads; verifies that output is in
+        // deterministic input order despite parallel execution.
+        Assert::main_binary()
+            .with_args(&[
+                "query",
+                "-d",
+                "tests/data/random_3_2_one_repeated.fna.smafadb",
+                "-q",
+                "tests/data/random_3_2_one_repeated.fna",
+                "-t",
+                "2",
+            ])
+            .succeeds()
+            .stdout()
+            .is("0	0	0	CTT\n\
+                1	1	0	AGG\n\
+                1	2	0	AGG\n\
+                2	1	0	AGG\n\
+                2	2	0	AGG\n")
+            .unwrap()
+    }
+
+    #[test]
+    fn test_cluster_multithreaded() {
+        Assert::main_binary()
+            .with_args(&[
+                "cluster",
+                "-i",
+                "tests/data/cluster_dummy1.fna",
+                "-d",
+                "1",
+                "-t",
+                "2",
+            ])
+            .succeeds()
+            .stdout()
+            .is("ATGC\tATGC\n\
+                ATGG\tATGC\n\
+                AAAA\tAAAA\n")
             .unwrap()
     }
 

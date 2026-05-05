@@ -21,6 +21,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max_divergence = m.get_one::<u32>("max-divergence");
             let max_num_hits = m.get_one::<u32>("max-num-hits");
             let limit_per_sequence = m.get_one::<u32>("limit-per-sequence");
+            let num_threads = *m.get_one::<usize>("threads").unwrap();
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build_global()
+                .expect("Programming error: rayon initialised multiple times");
+
             smafa::query(
                 db_root,
                 query_fasta,
@@ -41,6 +47,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             set_log_level(m, true);
             let input_fasta = m.get_one::<PathBuf>("input").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
+            let num_threads = *m.get_one::<usize>("threads").unwrap();
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build_global()
+                .expect("Programming error: rayon initialised multiple times");
             smafa::cluster(input_fasta, *max_divergence, &mut std::io::stdout())
         }
         Some("count") => {
@@ -94,6 +105,11 @@ fn build_cli() -> Command {
                 .arg(
                     arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence. Requires --max-num-hits > 1 for now. [default: not used]")
                         .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!(-t --threads <INT> "Number of threads to use")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1"),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(
@@ -103,6 +119,11 @@ fn build_cli() -> Command {
                 .arg(
                     arg!(-d --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!(-t --threads <INT> "Number of threads to use")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1"),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(

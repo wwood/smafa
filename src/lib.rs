@@ -1,4 +1,5 @@
 use needletail::parse_fastx_file;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use std::io::{Read, Write};
@@ -86,6 +87,32 @@ impl WindowSet {
                 .sum::<usize>()
                 / 2
         }
+    }
+
+    // Parallel version of get_distances: computes and returns a fresh Vec.
+    // Use this when the outer loop is sequential (e.g. cluster) so rayon can
+    // exploit multiple threads on the inner distance computation.
+    fn compute_distances_par(&self, seq: &SeqEncodingLength) -> Vec<usize> {
+        if let Some(n) = self.len {
+            if n.get() != seq.len {
+                panic!(
+                    "{}",
+                    &format!("Cannot compute distances between seq of length {} and windows of lengths {}", seq.len, n.get())
+                )
+            }
+        }
+        self.windows
+            .par_iter()
+            .map(|window| {
+                window
+                    .0
+                    .iter()
+                    .zip(seq.encoding.0.iter())
+                    .map(|(a, b)| (a ^ b).count_ones() as usize)
+                    .sum::<usize>()
+                    / 2
+            })
+            .collect()
     }
 
     fn push_encoding(&mut self, encoding: SeqEncodingLength) {
@@ -195,6 +222,11 @@ fn encode_single(c: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(encoding)
 }
 
+struct Record {
+    id: Vec<u8>,
+    seq: Vec<u8>,
+}
+
 pub fn query(
     db_path: &Path,
     query_fasta: &Path,
@@ -213,7 +245,7 @@ pub fn query(
     // support backwards compatibility.
     let version: u32 = postcard::from_bytes(&buffer[0..4])?;
     if version != CURRENT_DB_VERSION {
-        panic!("Unsupported db file version: {}. This version of smafa only works with version {} databases. The last version to support version 1 databases was v0.7.1.", version, CURRENT_DB_VERSION);
+        panic!("Unsupported db file version: {version}. This version of smafa only works with version {CURRENT_DB_VERSION} databases. The last version to support version 1 databases was v0.7.1.");
     }
     let windows: WindowSet = postcard::from_bytes(&buffer)?;
 
@@ -223,98 +255,117 @@ pub fn query(
     // 1 is a special case, it is equivalent to None.
     let max_divergence_for_match = max_num_hits.filter(|&max_num_hits| max_num_hits != 1);
 
-    // Pre-initialise the distances vector so don't have to continually reallocate.
-    let mut distances = vec![0; windows.windows.len()];
+    // Collect all records into a vector
+    let mut records = Vec::new();
+    while let Some(record) = query_reader.next() {
+        let seqrec = record.expect("Failed to parse query sequence");
+        records.push(Record {
+            id: seqrec.id().to_vec(),
+            seq: seqrec.seq().to_vec(),
+        });
+    }
 
     // Iterate over the query file.
+    // with_min_len reduces work-stealing overhead by ensuring each chunk has at
+    // least this many records before rayon considers splitting it further.
     info!("Querying ..");
-    let mut query_number: u32 = 0;
-    while let Some(record) = query_reader.next() {
-        // encode a line from stdin as a vector of bools
-        let record = record.expect("Failed to parse query sequence");
-        let query_vec = SeqEncodingLength::from_bytes(record.id(), &record.seq());
+    let results: Vec<Vec<String>> = records
+        .par_iter()
+        .with_min_len(1000)
+        .enumerate()
+        .map(|(query_number, record)| {
+            // encode a line from stdin as a vector of bools
+            let query_vec = SeqEncodingLength::from_bytes(&record.id, &record.seq);
+            let mut distances = vec![0; windows.windows.len()];
 
-        // Get the minimum distance between the query and each window using xor.
-        windows.get_distances(&query_vec, &mut distances);
+            // Get the minimum distance between the query and each window using xor.
+            windows.get_distances(&query_vec, &mut distances);
 
-        // Find the max_num_hits'th minimum distance.
-        match max_divergence_for_match {
-            Some(max_num_hits) => {
-                let mut min_distances = distances
-                    .iter()
-                    .enumerate()
-                    .map(|(i, d)| (*d, i))
-                    .collect::<Vec<_>>();
-                // There might be a faster way of doing this using a priority
-                // queue, but eh for now unless it really is slow.
-                min_distances.sort();
+            let mut lines = Vec::new();
 
-                // If max num hits is greater than the number of windows, just print them all.
-                let max_distance = match max_num_hits > min_distances.len() as u32 {
-                    true => *distances.iter().max().unwrap(),
-                    false => min_distances[(max_num_hits - 1) as usize].0,
-                };
+            // Find the max_num_hits'th minimum distance.
+            match max_divergence_for_match {
+                Some(max_num_hits) => {
+                    let mut min_distances = distances
+                        .iter()
+                        .enumerate()
+                        .map(|(i, d)| (*d, i))
+                        .collect::<Vec<_>>();
+                    // There might be a faster way of doing this using a priority
+                    // queue, but eh for now unless it really is slow.
+                    min_distances.sort();
 
-                // Print out the windows that qualify in order of increasing distance.
-                let mut last_sequence: Option<(String, u32)> = None;
-                let mut new_last_sequence: Option<(String, u32)>; // to get around borrow checker
-                for (distance, i) in min_distances.iter() {
-                    if *distance <= max_distance
-                        && (max_divergence.is_none()
-                            || *distance <= max_divergence.unwrap() as usize)
-                    {
-                        let s = windows.get_as_string(*i);
-                        debug!("Found hit sequence {} at distance {}", s, distance);
+                    // If max num hits is greater than the number of windows, just print them all.
+                    let max_distance = match max_num_hits > min_distances.len() as u32 {
+                        true => *distances.iter().max().unwrap(),
+                        false => min_distances[(max_num_hits - 1) as usize].0,
+                    };
 
-                        if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
-                            // limit per sequence
-                            match &last_sequence {
-                                Some((last_seq, last_seq_count)) => {
-                                    if last_seq == &s {
+                    // Print out the windows that qualify in order of increasing distance.
+                    let mut last_sequence: Option<(String, u32)> = None;
+                    let mut new_last_sequence: Option<(String, u32)>; // to get around borrow checker
+                    for (distance, i) in min_distances.iter() {
+                        if *distance <= max_distance
+                            && (max_divergence.is_none()
+                                || *distance <= max_divergence.unwrap() as usize)
+                        {
+                            let s = windows.get_as_string(*i);
+                            debug!("Found hit sequence {} at distance {}", s, distance);
+
+                            if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
+                                // limit per sequence
+                                match &last_sequence {
+                                    Some((last_seq, last_seq_count)) if last_seq == &s => {
                                         if last_seq_count >= &limit_per_sequence_unwrapped {
                                             continue;
                                         } else {
                                             new_last_sequence =
                                                 Some((s.clone(), last_seq_count + 1));
                                         }
-                                    } else {
+                                    }
+                                    _ => {
                                         new_last_sequence = Some((s.clone(), 1));
                                     }
                                 }
-                                None => {
-                                    new_last_sequence = Some((s.clone(), 1));
-                                }
+                                last_sequence = new_last_sequence;
                             }
-                            last_sequence = new_last_sequence;
-                        }
 
-                        // Print the window if we make it here.
-                        println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                            lines.push(format!("{query_number}\t{i}\t{distance}\t{s}\n"));
+                        }
                     }
                 }
-            }
-            None => {
-                // Find the minimum distance.
-                let min_distance = distances.iter().min().unwrap();
-                debug!("Min distance: {}", min_distance);
+                None => {
+                    // Find the minimum distance.
+                    let min_distance = distances.iter().min().unwrap();
+                    debug!("Min distance: {}", min_distance);
 
-                if limit_per_sequence.is_some() {
-                    panic!("limit_per_sequence is implemented unless max_num_hits > 1. It can be implemented by analogy, just haven't gotten around to it.");
-                }
+                    if limit_per_sequence.is_some() {
+                        panic!("limit_per_sequence is implemented unless max_num_hits > 1. It can be implemented by analogy, just haven't gotten around to it.");
+                    }
 
-                // Print the windows with the minimum distance.
-                if max_divergence.is_none() || *min_distance <= max_divergence.unwrap() as usize {
-                    for (i, distance) in distances.iter().enumerate() {
-                        if distance == min_distance {
-                            let s = windows.get_as_string(i);
-                            println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                    // Print the windows with the minimum distance.
+                    if max_divergence.is_none() || *min_distance <= max_divergence.unwrap() as usize {
+                        for (i, distance) in distances.iter().enumerate() {
+                            if distance == min_distance {
+                                let s = windows.get_as_string(i);
+                                lines.push(format!("{query_number}\t{i}\t{distance}\t{s}\n"));
+                            }
                         }
                     }
                 }
             }
+
+            lines
+        })
+        .collect();
+
+    // Print results in input order (rayon's collect preserves order).
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    for record_lines in results {
+        for line in record_lines {
+            out.write_all(line.as_bytes())?;
         }
-
-        query_number += 1;
     }
 
     info!(
