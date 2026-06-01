@@ -1,6 +1,8 @@
 use needletail::parse_fastx_file;
 use serde::{Deserialize, Serialize};
 
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 use std::io::{Read, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::path::{Path, PathBuf};
@@ -186,6 +188,111 @@ impl WindowSet {
     }
 }
 
+/// Hamming distance between two equal-length packed encodings, in number of
+/// differing nucleotide positions. Each mismatch flips two bits in the 5-bit
+/// one-hot encoding, hence the `/ 2`.
+#[inline]
+pub(crate) fn hamming(a: &SeqEncoding, b: &SeqEncoding) -> usize {
+    a.0.iter()
+        .zip(b.0.iter())
+        .map(|(x, y)| (x ^ y).count_ones() as usize)
+        .sum::<usize>()
+        / 2
+}
+
+/// FNV-1a hash of the (canonical) 5-bit codes covering nucleotide positions
+/// `[start, end)` of an encoding. Identical band content always yields an
+/// identical key; hash collisions only ever add extra candidates (never drop
+/// true ones), so they cost time, not correctness.
+#[inline]
+fn band_hash(enc: &SeqEncoding, start: usize, end: usize) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for i in start..end {
+        let code = (enc.0[i / 12] >> (5 * (i % 12))) & 0x1f;
+        h ^= code;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+/// Identity hasher for band keys: the keys are already well-mixed FNV hashes,
+/// so we avoid SipHash and bucket directly on the u64.
+#[derive(Default)]
+struct U64Hasher(u64);
+impl Hasher for U64Hasher {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i;
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = self.0.rotate_left(8) ^ b as u64;
+        }
+    }
+}
+type U64Map = HashMap<u64, Vec<u32>, BuildHasherDefault<U64Hasher>>;
+
+/// Pigeonhole / banding index.
+///
+/// For a maximum Hamming divergence `d`, a sequence is split into `d + 1`
+/// disjoint contiguous bands. Any two sequences within distance `d` must share
+/// at least one identical band (d mismatches cannot touch all d+1 bands), so a
+/// subject within `d` of a query is guaranteed to share a band with it. The
+/// index maps `band position -> band hash -> subject indices`, restricting the
+/// full-distance comparisons to subjects that share a band.
+///
+/// Exact for Hamming distance: it never misses a within-`d` subject. Valid only
+/// when `d + 1 <= len` (otherwise an all-differing pair could share no band);
+/// callers use it only when `d + 1 < len` and fall back to a full scan
+/// otherwise.
+pub(crate) struct BandIndex {
+    bounds: Vec<(usize, usize)>,
+    maps: Vec<U64Map>,
+}
+
+impl BandIndex {
+    pub(crate) fn new(max_divergence: usize, len: usize) -> Self {
+        let num_bands = (max_divergence + 1).min(len.max(1));
+        let bounds = (0..num_bands)
+            .map(|i| (i * len / num_bands, (i + 1) * len / num_bands))
+            .collect();
+        let maps = (0..num_bands).map(|_| U64Map::default()).collect();
+        BandIndex { bounds, maps }
+    }
+
+    pub(crate) fn keys(&self, enc: &SeqEncoding) -> Vec<u64> {
+        self.bounds
+            .iter()
+            .map(|&(s, e)| band_hash(enc, s, e))
+            .collect()
+    }
+
+    /// Subject indices that share at least one band with the given keys, sorted
+    /// ascending and deduplicated. Ascending order means a later strict-`<`
+    /// scan keeps the lowest-index subject on distance ties.
+    pub(crate) fn candidates_sorted(&self, keys: &[u64]) -> Vec<u32> {
+        let mut v = Vec::new();
+        for (b, &k) in keys.iter().enumerate() {
+            if let Some(list) = self.maps[b].get(&k) {
+                v.extend_from_slice(list);
+            }
+        }
+        v.sort_unstable();
+        v.dedup();
+        v
+    }
+
+    pub(crate) fn insert(&mut self, idx: u32, keys: &[u64]) {
+        for (b, &k) in keys.iter().enumerate() {
+            self.maps[b].entry(k).or_default().push(idx);
+        }
+    }
+}
+
 pub fn makedb(subject_fasta: &Path, db_path: &Path) -> Result<(), Box<dyn Error>> {
     // Iterate over lines, creating a vector of u8, where the lowest 5 bits of the u8
     // are the input nucleotides, one-hot encoded
@@ -253,6 +360,7 @@ pub fn query(
     max_divergence: Option<u32>,
     max_num_hits: Option<u32>,
     limit_per_sequence: Option<u32>,
+    no_banding: bool,
 ) -> Result<(), Box<dyn Error>> {
     // Decode
     info!("Decoding db file {:?}", db_path);
@@ -275,8 +383,41 @@ pub fn query(
     // 1 is a special case, it is equivalent to None.
     let max_divergence_for_match = max_num_hits.filter(|&max_num_hits| max_num_hits != 1);
 
-    // Pre-initialise the distances vector so don't have to continually reallocate.
-    let mut distances = vec![0; windows.windows.len()];
+    // Banding (the pigeonhole prefilter) can only prune when there is a
+    // divergence bound: without one, the nearest hit could be arbitrarily far
+    // and share no band, so we must scan everything. It is also only used when
+    // d + 1 < window length (a tighter bound makes the bands degenerate and the
+    // candidate sets explode), and can be disabled explicitly for large d.
+    let window_len = windows.len.map(NonZeroUsize::get).unwrap_or(0);
+    let band_index: Option<BandIndex> = match (no_banding, max_divergence) {
+        (false, Some(d)) if !windows.windows.is_empty() && (d as usize) + 1 < window_len => {
+            let d = d as usize;
+            info!(
+                "Building band index over {} subjects ({} bands) ..",
+                windows.windows.len(),
+                d + 1
+            );
+            let mut bi = BandIndex::new(d, window_len);
+            for (i, w) in windows.windows.iter().enumerate() {
+                let keys = bi.keys(w);
+                bi.insert(i as u32, &keys);
+            }
+            Some(bi)
+        }
+        (false, Some(d)) if (d as usize) + 1 >= window_len && window_len > 0 => {
+            info!("Banding disabled (max-divergence too large for the window length); scanning all subjects.");
+            None
+        }
+        _ => None,
+    };
+
+    // Pre-initialise the distances vector so don't have to continually
+    // reallocate. Only needed for the full-scan path.
+    let mut distances = if band_index.is_none() {
+        vec![0; windows.windows.len()]
+    } else {
+        Vec::new()
+    };
 
     // Iterate over the query file.
     info!("Querying ..");
@@ -286,6 +427,87 @@ pub fn query(
         let record = record.expect("Failed to parse query sequence");
         let query_vec = SeqEncodingLength::from_bytes(record.id(), &record.seq());
 
+        if let Some(bi) = band_index.as_ref() {
+            // ---- Banded path (only reached when max_divergence is Some) ----
+            let max_div = max_divergence.unwrap() as usize;
+            let keys = bi.keys(&query_vec.encoding);
+            let mut cand: Vec<(usize, usize)> = bi
+                .candidates_sorted(&keys)
+                .into_iter()
+                .map(|i| {
+                    (
+                        hamming(&windows.windows[i as usize], &query_vec.encoding),
+                        i as usize,
+                    )
+                })
+                .collect();
+            // Sort by (distance, index): the within-d subset and its ordering
+            // then match the full-scan path exactly, including the lowest-index
+            // tie-break.
+            cand.sort_unstable();
+
+            match max_divergence_for_match {
+                Some(max_num_hits) => {
+                    // k-th smallest distance among candidates. Output is gated by
+                    // `<= max_div`, and every within-d subject is a candidate, so
+                    // this reproduces the full-scan top-k-within-d result.
+                    let max_distance = if max_num_hits > cand.len() as u32 {
+                        cand.iter().map(|(d, _)| *d).max().unwrap_or(0)
+                    } else {
+                        cand[(max_num_hits - 1) as usize].0
+                    };
+
+                    let mut last_sequence: Option<(String, u32)> = None;
+                    let mut new_last_sequence: Option<(String, u32)>;
+                    for (distance, i) in cand.iter() {
+                        if *distance <= max_distance && *distance <= max_div {
+                            let s = windows.get_as_string(*i);
+                            debug!("Found hit sequence {} at distance {}", s, distance);
+
+                            if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
+                                match &last_sequence {
+                                    Some((last_seq, last_seq_count)) if last_seq == &s => {
+                                        if last_seq_count >= &limit_per_sequence_unwrapped {
+                                            continue;
+                                        } else {
+                                            new_last_sequence =
+                                                Some((s.clone(), last_seq_count + 1));
+                                        }
+                                    }
+                                    _ => {
+                                        new_last_sequence = Some((s.clone(), 1));
+                                    }
+                                }
+                                last_sequence = new_last_sequence;
+                            }
+
+                            println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                        }
+                    }
+                }
+                None => {
+                    if limit_per_sequence.is_some() {
+                        panic!("limit_per_sequence is implemented unless max_num_hits > 1. It can be implemented by analogy, just haven't gotten around to it.");
+                    }
+                    // Closest candidate; print all at that distance if within d.
+                    if let Some(min_distance) = cand.iter().map(|(d, _)| *d).min() {
+                        if min_distance <= max_div {
+                            for (distance, i) in cand.iter() {
+                                if *distance == min_distance {
+                                    let s = windows.get_as_string(*i);
+                                    println!("{}\t{}\t{}\t{}", query_number, i, distance, s);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            query_number += 1;
+            continue;
+        }
+
+        // ---- Full-scan path (no divergence bound, or banding disabled) ----
         // Get the minimum distance between the query and each window using xor.
         windows.get_distances(&query_vec, &mut distances);
 

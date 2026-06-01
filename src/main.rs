@@ -21,12 +21,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max_divergence = m.get_one::<u32>("max-divergence");
             let max_num_hits = m.get_one::<u32>("max-num-hits");
             let limit_per_sequence = m.get_one::<u32>("limit-per-sequence");
+            let no_banding = m.get_flag("no-banding");
             smafa::query(
                 db_root,
                 query_fasta,
                 max_divergence.copied(),
                 max_num_hits.copied(),
                 limit_per_sequence.copied(),
+                no_banding,
             )
         }
         Some("makedb") => {
@@ -99,6 +101,9 @@ fn build_cli() -> Command {
                 .arg(
                     arg!( --"limit-per-sequence" <INT> "Maximum number of hits to report per sequence. Requires --max-num-hits > 1 for now. [default: not used]")
                         .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!(--"no-banding" "Disable the pigeonhole banding prefilter and scan all subjects. Banding is only used when --max-divergence is set and small relative to the window length; disable it for large --max-divergence.")
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(

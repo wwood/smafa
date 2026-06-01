@@ -1,128 +1,20 @@
 use needletail::parse_fastx_file;
 use rayon::prelude::*;
 
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::error::Error;
-use std::hash::{BuildHasherDefault, Hasher};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::Instant;
 
 use log::info;
 
-use crate::{SeqEncoding, SeqEncodingLength, WindowSet};
+use crate::{hamming, BandIndex, SeqEncodingLength, WindowSet};
 
 /// Number of unique input sequences processed per parallel block. Larger blocks
 /// expose more parallelism in phase 1, but increase the serial phase-2
 /// reconciliation cost, which is bounded by O(BLOCK_SIZE^2) per block.
 const BLOCK_SIZE: usize = 8192;
-
-/// Hamming distance between two equal-length packed encodings, in number of
-/// differing nucleotide positions. Each mismatch flips two bits in the 5-bit
-/// one-hot encoding, hence the `/ 2`.
-#[inline]
-fn hamming(a: &SeqEncoding, b: &SeqEncoding) -> usize {
-    a.0.iter()
-        .zip(b.0.iter())
-        .map(|(x, y)| (x ^ y).count_ones() as usize)
-        .sum::<usize>()
-        / 2
-}
-
-/// FNV-1a hash of the (canonical) 5-bit codes covering nucleotide positions
-/// `[start, end)` of an encoding. Identical band content always yields an
-/// identical key; hash collisions only ever add extra candidates (never drop
-/// true ones), so they cost time, not correctness.
-#[inline]
-fn band_hash(enc: &SeqEncoding, start: usize, end: usize) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for i in start..end {
-        let code = (enc.0[i / 12] >> (5 * (i % 12))) & 0x1f;
-        h ^= code;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    h
-}
-
-/// Identity hasher for band keys: the keys are already well-mixed FNV hashes,
-/// so we avoid SipHash and bucket directly on the u64.
-#[derive(Default)]
-struct U64Hasher(u64);
-impl Hasher for U64Hasher {
-    #[inline]
-    fn finish(&self) -> u64 {
-        self.0
-    }
-    #[inline]
-    fn write_u64(&mut self, i: u64) {
-        self.0 = i;
-    }
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = self.0.rotate_left(8) ^ b as u64;
-        }
-    }
-}
-type U64Map = HashMap<u64, Vec<u32>, BuildHasherDefault<U64Hasher>>;
-
-/// Pigeonhole / banding index over centroids.
-///
-/// For a maximum Hamming divergence `d`, the sequence is split into `d + 1`
-/// disjoint contiguous bands. Any two sequences within distance `d` must have
-/// at least one band that is identical (d mismatches cannot touch all d+1
-/// bands), so a centroid within `d` of a query is guaranteed to share a band
-/// with it. The index therefore lets us restrict the (expensive) full-distance
-/// comparisons to centroids that share at least one band, turning the greedy
-/// scan from O(K) per query towards near-constant when clusters are dense.
-///
-/// This is exact for Hamming distance: it never misses a centroid within `d`.
-/// (Used only when `d + 1 < len`; otherwise a single all-differing pair could
-/// share no band, so the caller falls back to a full scan.)
-struct BandIndex {
-    bounds: Vec<(usize, usize)>,
-    maps: Vec<U64Map>,
-}
-
-impl BandIndex {
-    fn new(max_divergence: usize, len: usize) -> Self {
-        let num_bands = (max_divergence + 1).min(len.max(1));
-        let bounds = (0..num_bands)
-            .map(|i| (i * len / num_bands, (i + 1) * len / num_bands))
-            .collect();
-        let maps = (0..num_bands).map(|_| U64Map::default()).collect();
-        BandIndex { bounds, maps }
-    }
-
-    fn keys(&self, enc: &SeqEncoding) -> Vec<u64> {
-        self.bounds
-            .iter()
-            .map(|&(s, e)| band_hash(enc, s, e))
-            .collect()
-    }
-
-    /// Centroid indices that share at least one band with the given keys,
-    /// sorted ascending and deduplicated. Ascending order means a later
-    /// strict-`<` scan keeps the lowest-index centroid on distance ties,
-    /// matching the original greedy behaviour.
-    fn candidates_sorted(&self, keys: &[u64]) -> Vec<u32> {
-        let mut v = Vec::new();
-        for (b, &k) in keys.iter().enumerate() {
-            if let Some(list) = self.maps[b].get(&k) {
-                v.extend_from_slice(list);
-            }
-        }
-        v.sort_unstable();
-        v.dedup();
-        v
-    }
-
-    fn insert(&mut self, idx: u32, keys: &[u64]) {
-        for (b, &k) in keys.iter().enumerate() {
-            self.maps[b].entry(k).or_default().push(idx);
-        }
-    }
-}
 
 /// Greedy single-linkage-style centroid clustering, parallelised by block
 /// (phase 1 across sequences) and, when divergence is small relative to the
