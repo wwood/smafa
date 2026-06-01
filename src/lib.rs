@@ -88,6 +88,58 @@ impl WindowSet {
         }
     }
 
+    /// Serial nearest-centroid search. Returns `(distance, index)` of the
+    /// lowest-indexed window with the smallest Hamming distance to `seq`, or
+    /// `(usize::MAX, usize::MAX)` when there are no windows. The strict `<`
+    /// comparison keeps the first (lowest-index) window on ties, matching the
+    /// original greedy clustering behaviour.
+    fn nearest(&self, seq: &SeqEncodingLength) -> (usize, usize) {
+        if let Some(n) = self.len {
+            if n.get() != seq.len {
+                panic!(
+                    "{}",
+                    &format!("Cannot compute distances between seq of length {} and windows of lengths {}", seq.len, n.get())
+                )
+            }
+        }
+        let mut best = (usize::MAX, usize::MAX);
+        for (i, window) in self.windows.iter().enumerate() {
+            let d = window
+                .0
+                .iter()
+                .zip(seq.encoding.0.iter())
+                .map(|(a, b)| (a ^ b).count_ones() as usize)
+                .sum::<usize>()
+                / 2;
+            if d < best.0 {
+                best = (d, i);
+            }
+        }
+        best
+    }
+
+    /// Move all windows from `other` into `self`, preserving order.
+    fn merge(&mut self, mut other: WindowSet) {
+        if other.windows.is_empty() {
+            return;
+        }
+        match self.len {
+            Some(n) => {
+                if let Some(m) = other.len {
+                    if n.get() != m.get() {
+                        panic!(
+                            "Cannot merge WindowSets with differing sequence lengths {} and {}",
+                            n.get(),
+                            m.get()
+                        );
+                    }
+                }
+            }
+            None => self.len = other.len,
+        }
+        self.windows.append(&mut other.windows);
+    }
+
     fn push_encoding(&mut self, encoding: SeqEncodingLength) {
         if let Some(n) = self.len {
             if n.get() != encoding.len {
@@ -269,19 +321,14 @@ pub fn query(
                         if let Some(limit_per_sequence_unwrapped) = limit_per_sequence {
                             // limit per sequence
                             match &last_sequence {
-                                Some((last_seq, last_seq_count)) => {
-                                    if last_seq == &s {
-                                        if last_seq_count >= &limit_per_sequence_unwrapped {
-                                            continue;
-                                        } else {
-                                            new_last_sequence =
-                                                Some((s.clone(), last_seq_count + 1));
-                                        }
+                                Some((last_seq, last_seq_count)) if last_seq == &s => {
+                                    if last_seq_count >= &limit_per_sequence_unwrapped {
+                                        continue;
                                     } else {
-                                        new_last_sequence = Some((s.clone(), 1));
+                                        new_last_sequence = Some((s.clone(), last_seq_count + 1));
                                     }
                                 }
-                                None => {
+                                _ => {
                                     new_last_sequence = Some((s.clone(), 1));
                                 }
                             }

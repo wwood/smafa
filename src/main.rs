@@ -41,6 +41,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             set_log_level(m, true);
             let input_fasta = m.get_one::<PathBuf>("input").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
+            let num_threads = *m.get_one::<usize>("threads").unwrap();
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build_global()
+                .expect("Failed to initialise global thread pool");
             smafa::cluster(input_fasta, *max_divergence, &mut std::io::stdout())
         }
         Some("count") => {
@@ -103,6 +108,11 @@ fn build_cli() -> Command {
                 .arg(
                     arg!(-d --"max-divergence" <INT> "Maximum divergence to report hits for, for each sequence [default: not used]")
                         .value_parser(value_parser!(u32)),
+                )
+                .arg(
+                    arg!(-t --threads <INT> "Number of threads to use [default: 1]")
+                        .value_parser(value_parser!(usize))
+                        .default_value("1"),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(
