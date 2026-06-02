@@ -28,6 +28,7 @@ const BLOCK_SIZE: usize = 8192;
 pub fn cluster(
     input_fasta: &Path,
     max_divergence: u32,
+    no_banding: bool,
     print_stream: &mut dyn std::io::Write,
 ) -> Result<(), Box<dyn Error>> {
     let start = Instant::now();
@@ -88,7 +89,7 @@ pub fn cluster(
             let len = block[0].1.len;
             // Banding needs d + 1 < len to guarantee a shared band for every
             // within-d pair; otherwise fall back to full scans.
-            if max_divergence_usize + 1 < len {
+            if !no_banding && max_divergence_usize + 1 < len {
                 band_index = Some(BandIndex::new(max_divergence_usize, len));
             }
             initialized = true;
@@ -195,7 +196,13 @@ mod tests {
     #[test]
     fn test_simple() {
         let mut stream = Cursor::new(Vec::new());
-        cluster(Path::new("tests/data/cluster_dummy1.fna"), 1, &mut stream).unwrap();
+        cluster(
+            Path::new("tests/data/cluster_dummy1.fna"),
+            1,
+            false,
+            &mut stream,
+        )
+        .unwrap();
         assert_eq!(
             "ATGC\tATGC
 ATGG\tATGC
@@ -208,7 +215,13 @@ AAAA\tAAAA
     #[test]
     fn test_bug1() {
         let mut stream = Cursor::new(Vec::new());
-        cluster(Path::new("tests/data/cluster_bug1.fna"), 2, &mut stream).unwrap();
+        cluster(
+            Path::new("tests/data/cluster_bug1.fna"),
+            2,
+            false,
+            &mut stream,
+        )
+        .unwrap();
         assert_eq!(
             "ATGCAAAAA\tATGCAAAAA\n\
              ATAAAAAAA\tATGCAAAAA\n\
@@ -225,6 +238,7 @@ AAAA\tAAAA
         cluster(
             Path::new("tests/data/cluster_best_hit_changes.fna"),
             2,
+            false,
             &mut stream,
         )
         .unwrap();

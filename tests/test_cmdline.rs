@@ -266,6 +266,27 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_cluster_multithreaded_no_banding() {
+        Assert::main_binary()
+            .with_args(&[
+                "cluster",
+                "-i",
+                "tests/data/cluster_dummy1.fna",
+                "-d",
+                "1",
+                "--no-banding",
+                "-t",
+                "2",
+            ])
+            .succeeds()
+            .stdout()
+            .is("ATGC\tATGC\n\
+                ATGG\tATGC\n\
+                AAAA\tAAAA\n")
+            .unwrap()
+    }
+
     // #[test]
     // fn test_db_version_incompatibility(){
     //     Assert::main_binary()

@@ -44,11 +44,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let input_fasta = m.get_one::<PathBuf>("input").unwrap();
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
             let num_threads = *m.get_one::<usize>("threads").unwrap();
+            let no_banding = m.get_flag("no-banding");
             rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
                 .build_global()
                 .expect("Failed to initialise global thread pool");
-            smafa::cluster(input_fasta, *max_divergence, &mut std::io::stdout())
+            smafa::cluster(
+                input_fasta,
+                *max_divergence,
+                no_banding,
+                &mut std::io::stdout(),
+            )
         }
         Some("count") => {
             let m = matches.subcommand_matches("count").unwrap();
@@ -118,6 +124,9 @@ fn build_cli() -> Command {
                     arg!(-t --threads <INT> "Number of threads to use [default: 1]")
                         .value_parser(value_parser!(usize))
                         .default_value("1"),
+                )
+                .arg(
+                    arg!(--"no-banding" "Disable the pigeonhole banding prefilter and scan all subjects. Banding is only used when --max-divergence is set and small relative to the window length; disable it for large --max-divergence.")
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(
