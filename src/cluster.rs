@@ -9,12 +9,25 @@ use std::time::Instant;
 
 use log::info;
 
-use crate::{hamming, BandIndex, SeqEncodingLength, WindowSet};
+use crate::{hamming, BandIndex, SeqEncoding, SeqEncodingLength, WindowSet};
 
 /// Number of unique input sequences processed per parallel block. Larger blocks
 /// expose more parallelism in phase 1, but increase the serial phase-2
 /// reconciliation cost, which is bounded by O(BLOCK_SIZE^2) per block.
 const BLOCK_SIZE: usize = 8192;
+
+/// Which pigeonhole partitioning to use for the banding prefilter. Both choices
+/// produce identical clustering output (every valid `d+1`-band partition is
+/// exact by pigeonhole); they only differ in how many false candidates get
+/// scanned, i.e. in speed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClusterBanding {
+    /// `d+1` equal contiguous bands (the original scheme).
+    Contiguous,
+    /// One entropy-balanced partition, with per-column conservation estimated
+    /// from the first block of input sequences. Faster on coding data.
+    Balanced,
+}
 
 /// Greedy single-linkage-style centroid clustering, parallelised by block
 /// (phase 1 across sequences) and, when divergence is small relative to the
@@ -29,6 +42,7 @@ pub fn cluster(
     input_fasta: &Path,
     max_divergence: u32,
     no_banding: bool,
+    banding: ClusterBanding,
     print_stream: &mut dyn std::io::Write,
 ) -> Result<(), Box<dyn Error>> {
     let start = Instant::now();
@@ -88,9 +102,19 @@ pub fn cluster(
         if !initialized {
             let len = block[0].1.len;
             // Banding needs d + 1 < len to guarantee a shared band for every
-            // within-d pair; otherwise fall back to full scans.
+            // within-d pair; otherwise fall back to full scans. The partition
+            // choice never changes the output (any d+1-band partition is exact),
+            // only how many false candidates are scanned.
             if !no_banding && max_divergence_usize + 1 < len {
-                band_index = Some(BandIndex::new(max_divergence_usize, len));
+                band_index = Some(match banding {
+                    ClusterBanding::Contiguous => BandIndex::new(max_divergence_usize, len),
+                    ClusterBanding::Balanced => {
+                        // Estimate per-column conservation from the first block.
+                        let sample: Vec<SeqEncoding> =
+                            block.iter().map(|(_, enc)| enc.encoding.clone()).collect();
+                        BandIndex::single_balanced(max_divergence_usize, len, &sample)
+                    }
+                });
             }
             initialized = true;
         }
@@ -193,60 +217,61 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    #[test]
-    fn test_simple() {
+    /// Run `cluster` with every banding strategy (plus no-banding) and assert
+    /// they all produce `expected` — the output must not depend on the partition.
+    fn assert_all_strategies(file: &str, d: u32, expected: &str) {
+        for banding in [ClusterBanding::Contiguous, ClusterBanding::Balanced] {
+            let mut stream = Cursor::new(Vec::new());
+            cluster(Path::new(file), d, false, banding, &mut stream).unwrap();
+            assert_eq!(
+                expected,
+                std::str::from_utf8(stream.get_ref()).unwrap(),
+                "banded output differs for {banding:?}"
+            );
+        }
+        // no-banding (full scan) must match too.
         let mut stream = Cursor::new(Vec::new());
         cluster(
-            Path::new("tests/data/cluster_dummy1.fna"),
-            1,
-            false,
+            Path::new(file),
+            d,
+            true,
+            ClusterBanding::Contiguous,
             &mut stream,
         )
         .unwrap();
-        assert_eq!(
-            "ATGC\tATGC
-ATGG\tATGC
-AAAA\tAAAA
-",
-            std::str::from_utf8(stream.get_ref()).unwrap()
-        )
+        assert_eq!(expected, std::str::from_utf8(stream.get_ref()).unwrap());
+    }
+
+    #[test]
+    fn test_simple() {
+        assert_all_strategies(
+            "tests/data/cluster_dummy1.fna",
+            1,
+            "ATGC\tATGC\nATGG\tATGC\nAAAA\tAAAA\n",
+        );
     }
 
     #[test]
     fn test_bug1() {
-        let mut stream = Cursor::new(Vec::new());
-        cluster(
-            Path::new("tests/data/cluster_bug1.fna"),
+        assert_all_strategies(
+            "tests/data/cluster_bug1.fna",
             2,
-            false,
-            &mut stream,
-        )
-        .unwrap();
-        assert_eq!(
             "ATGCAAAAA\tATGCAAAAA\n\
              ATAAAAAAA\tATGCAAAAA\n\
              TTAAAAAAA\tTTAAAAAAA\n",
-            std::str::from_utf8(stream.get_ref()).unwrap()
-        )
+        );
     }
 
     #[test]
     fn test_best_hit_changes_bug() {
         // seq4 in the file shouldn't be reported otherwise there are two
         // sequences that are the same but are given different centroids.
-        let mut stream = Cursor::new(Vec::new());
-        cluster(
-            Path::new("tests/data/cluster_best_hit_changes.fna"),
+        assert_all_strategies(
+            "tests/data/cluster_best_hit_changes.fna",
             2,
-            false,
-            &mut stream,
-        )
-        .unwrap();
-        assert_eq!(
             "ATGCAAAAA\tATGCAAAAA\n\
              ATAAAAAAA\tATGCAAAAA\n\
              TTAAAAAAA\tTTAAAAAAA\n",
-            std::str::from_utf8(stream.get_ref()).unwrap()
-        )
+        );
     }
 }

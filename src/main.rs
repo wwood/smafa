@@ -45,6 +45,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
             let num_threads = *m.get_one::<usize>("threads").unwrap();
             let no_banding = m.get_flag("no-banding");
+            let banding = match m.get_one::<String>("banding").map(String::as_str) {
+                Some("contiguous") => smafa::ClusterBanding::Contiguous,
+                _ => smafa::ClusterBanding::Balanced,
+            };
             rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
                 .build_global()
@@ -53,8 +57,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 input_fasta,
                 *max_divergence,
                 no_banding,
+                banding,
                 &mut std::io::stdout(),
             )
+        }
+        Some("bench-banding") => {
+            let m = matches.subcommand_matches("bench-banding").unwrap();
+            set_log_level(m, true);
+            let database = m.get_one::<PathBuf>("database").unwrap();
+            let query_fasta = m.get_one::<PathBuf>("query").unwrap();
+            let divergences: Vec<u32> =
+                m.get_many::<u32>("divergences").unwrap().copied().collect();
+            let max_queries = m.get_one::<usize>("max-queries").copied();
+            smafa::bench_banding(database, query_fasta, &divergences, max_queries)
         }
         Some("count") => {
             let m = matches.subcommand_matches("count").unwrap();
@@ -127,6 +142,27 @@ fn build_cli() -> Command {
                 )
                 .arg(
                     arg!(--"no-banding" "Disable the pigeonhole banding prefilter and scan all subjects. Banding is only used when --max-divergence is set and small relative to the window length; disable it for large --max-divergence.")
+                )
+                .arg(
+                    arg!(--banding <STRATEGY> "Banding partition strategy: balanced (entropy-balanced from the first block) or contiguous. Both give identical output; balanced is faster on coding data. [default: balanced]")
+                        .value_parser(["balanced", "contiguous"])
+                        .default_value("balanced"),
+                ),
+        ))
+        .subcommand(add_clap_verbosity_flags(
+            Command::new("bench-banding")
+                .about("Benchmark query banding strategies (candidate-set size and speed) on a DB + query set")
+                .arg(arg!(-d --database <FILE> "Output from makedb [required]").required(true).value_parser(value_parser!(PathBuf)))
+                .arg(arg!(-q --query <FILE> "Query sequences in FASTX format [required]").required(true).value_parser(value_parser!(PathBuf)))
+                .arg(
+                    arg!(--divergences <INT> "Divergences to benchmark")
+                        .num_args(1..)
+                        .value_parser(value_parser!(u32))
+                        .default_values(["2", "3", "5"]),
+                )
+                .arg(
+                    arg!(--"max-queries" <INT> "Only use the first N queries [default: all]")
+                        .value_parser(value_parser!(usize)),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(
