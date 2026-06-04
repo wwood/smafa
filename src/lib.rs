@@ -217,7 +217,7 @@ type Band = Vec<usize>;
 ///
 /// FNV is order-dependent, so the same `cols` ordering must be used to index a
 /// subject and to probe with a query — guaranteed here because both go through
-/// the same `Partition`.
+/// the same `BandIndex` bands.
 #[inline]
 fn band_hash(enc: &SeqEncoding, cols: &[usize]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
