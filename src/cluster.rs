@@ -16,19 +16,6 @@ use crate::{hamming, BandIndex, SeqEncoding, SeqEncodingLength, WindowSet};
 /// reconciliation cost, which is bounded by O(BLOCK_SIZE^2) per block.
 const BLOCK_SIZE: usize = 8192;
 
-/// Which pigeonhole partitioning to use for the banding prefilter. Both choices
-/// produce identical clustering output (every valid `d+1`-band partition is
-/// exact by pigeonhole); they only differ in how many false candidates get
-/// scanned, i.e. in speed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ClusterBanding {
-    /// `d+1` equal contiguous bands (the original scheme).
-    Contiguous,
-    /// One entropy-balanced partition, with per-column conservation estimated
-    /// from the first block of input sequences. Faster on coding data.
-    Balanced,
-}
-
 /// Greedy single-linkage-style centroid clustering, parallelised by block
 /// (phase 1 across sequences) and, when divergence is small relative to the
 /// sequence length, accelerated with a pigeonhole/banding index so that each
@@ -42,7 +29,6 @@ pub fn cluster(
     input_fasta: &Path,
     max_divergence: u32,
     no_banding: bool,
-    banding: ClusterBanding,
     print_stream: &mut dyn std::io::Write,
 ) -> Result<(), Box<dyn Error>> {
     let start = Instant::now();
@@ -102,19 +88,19 @@ pub fn cluster(
         if !initialized {
             let len = block[0].1.len;
             // Banding needs d + 1 < len to guarantee a shared band for every
-            // within-d pair; otherwise fall back to full scans. The partition
-            // choice never changes the output (any d+1-band partition is exact),
-            // only how many false candidates are scanned.
+            // within-d pair; otherwise fall back to full scans. The entropy-
+            // balanced partition never changes the output (any d+1-band partition
+            // is exact), it just scans fewer false candidates than contiguous
+            // bands on coding data. Per-column conservation is estimated from the
+            // first block of input sequences.
             if !no_banding && max_divergence_usize + 1 < len {
-                band_index = Some(match banding {
-                    ClusterBanding::Contiguous => BandIndex::new(max_divergence_usize, len),
-                    ClusterBanding::Balanced => {
-                        // Estimate per-column conservation from the first block.
-                        let sample: Vec<SeqEncoding> =
-                            block.iter().map(|(_, enc)| enc.encoding.clone()).collect();
-                        BandIndex::single_balanced(max_divergence_usize, len, &sample)
-                    }
-                });
+                let sample: Vec<SeqEncoding> =
+                    block.iter().map(|(_, enc)| enc.encoding.clone()).collect();
+                band_index = Some(BandIndex::single_balanced(
+                    max_divergence_usize,
+                    len,
+                    &sample,
+                ));
             }
             initialized = true;
         }
@@ -217,29 +203,18 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    /// Run `cluster` with every banding strategy (plus no-banding) and assert
-    /// they all produce `expected` — the output must not depend on the partition.
+    /// Run `cluster` both banded (balanced) and unbanded and assert both produce
+    /// `expected` — the output must not depend on the prefilter.
     fn assert_all_strategies(file: &str, d: u32, expected: &str) {
-        for banding in [ClusterBanding::Contiguous, ClusterBanding::Balanced] {
+        for no_banding in [false, true] {
             let mut stream = Cursor::new(Vec::new());
-            cluster(Path::new(file), d, false, banding, &mut stream).unwrap();
+            cluster(Path::new(file), d, no_banding, &mut stream).unwrap();
             assert_eq!(
                 expected,
                 std::str::from_utf8(stream.get_ref()).unwrap(),
-                "banded output differs for {banding:?}"
+                "output differs for no_banding={no_banding}"
             );
         }
-        // no-banding (full scan) must match too.
-        let mut stream = Cursor::new(Vec::new());
-        cluster(
-            Path::new(file),
-            d,
-            true,
-            ClusterBanding::Contiguous,
-            &mut stream,
-        )
-        .unwrap();
-        assert_eq!(expected, std::str::from_utf8(stream.get_ref()).unwrap());
     }
 
     #[test]

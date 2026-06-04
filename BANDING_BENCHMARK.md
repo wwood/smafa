@@ -171,8 +171,11 @@ Two consequences:
   and build the single band index from it. Skip the second partition (it cuts
   candidates but loses on wall time on this data).
 
-Following this benchmark, the two-partition strategies (`offset-wrap` and
-`balanced-diag`) have been **removed from the code**. Only the two single-partition
-strategies remain: `contiguous` (`BandIndex::new`) and `balanced`
-(`BandIndex::single_balanced`). `cluster` defaults to `balanced`; the
-`bench-banding` subcommand compares the two on a real DB + query set.
+Following this benchmark, **balanced is the only production banding**: both
+`query` and `cluster` use `BandIndex::single_balanced` (query recomputes the
+weights from the loaded subjects; cluster estimates them from the first input
+block). The two-partition strategies (`offset-wrap`, `balanced-diag`) are gone,
+and contiguous banding is no longer selectable in production. `BandIndex::new`
+(contiguous) is retained only as the baseline inside the `bench-banding`
+subcommand, which still compares contiguous vs balanced on a real DB + query set
+so this result stays reproducible.

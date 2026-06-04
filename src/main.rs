@@ -45,10 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max_divergence = m.get_one::<u32>("max-divergence").unwrap();
             let num_threads = *m.get_one::<usize>("threads").unwrap();
             let no_banding = m.get_flag("no-banding");
-            let banding = match m.get_one::<String>("banding").map(String::as_str) {
-                Some("contiguous") => smafa::ClusterBanding::Contiguous,
-                _ => smafa::ClusterBanding::Balanced,
-            };
             rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
                 .build_global()
@@ -57,7 +53,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 input_fasta,
                 *max_divergence,
                 no_banding,
-                banding,
                 &mut std::io::stdout(),
             )
         }
@@ -142,11 +137,6 @@ fn build_cli() -> Command {
                 )
                 .arg(
                     arg!(--"no-banding" "Disable the pigeonhole banding prefilter and scan all subjects. Banding is only used when --max-divergence is set and small relative to the window length; disable it for large --max-divergence.")
-                )
-                .arg(
-                    arg!(--banding <STRATEGY> "Banding partition strategy: balanced (entropy-balanced from the first block) or contiguous. Both give identical output; balanced is faster on coding data. [default: balanced]")
-                        .value_parser(["balanced", "contiguous"])
-                        .default_value("balanced"),
                 ),
         ))
         .subcommand(add_clap_verbosity_flags(

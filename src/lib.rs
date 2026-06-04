@@ -12,12 +12,16 @@ use std::{error::Error, fs::File};
 use log::{debug, info};
 
 mod cluster;
-pub use cluster::{cluster, ClusterBanding};
+pub use cluster::cluster;
 
 pub const AUTHOR_AND_EMAIL: &str =
     "Ben J. Woodcroft, Centre for Microbiome Research, School of Biomedical Sciences, Faculty of Health, Queensland University of Technology <benjwoodcroft near gmail.com>";
 
 pub const CURRENT_DB_VERSION: u32 = 2;
+// NOTE: when this version is next bumped, cache the per-column conservation
+// weights (see `column_weights`) in the new DB format. `query` and `cluster`
+// currently recompute them at load to build the balanced band partition (~10 ms
+// for ~137k subjects); storing them would make that free. See BANDING_BENCHMARK.md.
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SeqEncoding(Vec<u64>);
@@ -488,11 +492,14 @@ pub fn query(
         (false, Some(d)) if !windows.windows.is_empty() && (d as usize) + 1 < window_len => {
             let d = d as usize;
             info!(
-                "Building band index over {} subjects ({} bands) ..",
+                "Building balanced band index over {} subjects ({} bands) ..",
                 windows.windows.len(),
                 d + 1
             );
-            let mut bi = BandIndex::new(d, window_len);
+            // Entropy-balanced partition: column conservation is recomputed from
+            // the subjects at load (~10 ms for ~137k subjects), so no DB-format
+            // change is needed. Exact like any d+1-band partition.
+            let mut bi = BandIndex::single_balanced(d, window_len, &windows.windows);
             for (i, w) in windows.windows.iter().enumerate() {
                 let keys = bi.keys(w);
                 bi.insert(i as u32, &keys);
