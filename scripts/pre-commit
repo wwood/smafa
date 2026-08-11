@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Install from the repository root with:
+#   ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+set -euo pipefail
+
+if ! cargo fmt --all -- --check; then
+    echo >&2
+    echo "error: rustfmt found unformatted code." >&2
+    echo "       run 'cargo fmt --all', then 'git add' and commit again." >&2
+    exit 1
+fi

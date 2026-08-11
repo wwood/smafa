@@ -9,9 +9,18 @@ homepage = "https://github.com/wwood/smafa"
 repository = "https://github.com/wwood/smafa"
 documentation = "https://github.com/wwood/smafa"
 readme = "README.md"
-exclude = [ # Max upload is 10MB, as of writing test data was 15MB
-  "tests/*",
+include = [
+  "src/**",
+  "Cargo.toml",
+  "Cargo.lock",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENCE.txt",
 ]
+
+[[bin]]
+name = "smafa"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,9 +40,21 @@ rayon = "1.10"
 [dev-dependencies]
 tempfile = "3.1"
 assert_cli = "0.6"
-cargo-husky = { version="1", default-features = false, features=["precommit-hook", "run-cargo-fmt", "run-cargo-clippy"] }
 
 [profile.release]
 strip = true # Comment out for profiling
 lto = true # Comment out for profiling
+codegen-units = 1
 # debug = true # For profiling of the code
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+[workspace.metadata.dist]
+cargo-dist-version = "0.32.0"
+ci = "github"
+installers = ["shell"]
+targets = ["x86_64-unknown-linux-musl"]
+install-updater = false
+install-path = "CARGO_HOME"

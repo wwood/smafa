@@ -37,6 +37,17 @@ query --help`.
 If you have any questions or comments, please raise an issue on the GitHub
 repository, or just email Ben Woodcroft.
 
+## Development
+
+Install the formatting pre-commit hook once in each clone:
+
+```
+ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+```
+
+Before submitting changes, run `cargo fmt --all -- --check`,
+`cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test`.
+
 ## License
 Smafa is developed by the [Woodcroft lab](https://research.qut.edu.au/cmr/team/ben-woodcroft/) at the [Centre for Microbiome Research](https://research.qut.edu.au/cmr), School of Biomedical Sciences, QUT. It is licensed under [GPL3 or later](https://gnu.org/licenses/gpl.html).
 

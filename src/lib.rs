@@ -890,7 +890,7 @@ mod tests {
         assert_eq!(windows.windows.len(), 5);
 
         // Check that the first sequence has the expected one-hot encoded values.
-        let expected_encoded = vec![
+        let expected_encoded = [
             vec![0b10000],
             vec![0b01000],
             vec![0b00100],
