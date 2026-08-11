@@ -893,7 +893,7 @@ checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
 
 [[package]]
 name = "smafa"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "assert_cli",
  "bird_tool_utils",

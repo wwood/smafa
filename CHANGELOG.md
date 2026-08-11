@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## Version 0.9.0
+
 ### Added
 
 - Add entropy-balanced banding and pigeonhole prefilters for faster clustering and querying.
